@@ -140,6 +140,36 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ---
 
+## Phase 4b: Enhancements (Above & Beyond)
+
+**Goal:** Demonstrate growth engineering mindset with instrumentation depth and UI polish — all within the single-file, zero-dependency constraint.
+
+**Enhancements:**
+
+1. **Server-side page view tracking** — Send `mirror_page_viewed` event to Amplitude from `GET /` via FastAPI `BackgroundTasks` (non-blocking response). Shows holistic instrumentation thinking beyond just data ingestion.
+   - Add `secrets=[modal.Secret.from_name("amplitude-secret")]` to `serve` function
+   - Event: `device_id: "reddit-mirror-web"` (distinct from poller's `"reddit-mirror"`), `event_properties: {post_count}`
+   - No `insert_id` needed (each page view is a unique event)
+   - Graceful degradation: `os.environ.get()` + try/except — never crashes the page
+
+2. **Richer Amplitude event properties** — Add to `reddit_post_ingested` events:
+   - `post_age_minutes`: `round((now - created_utc) / 60)` — enables "how stale are posts at ingestion?" charts
+   - `post_position`: 1-indexed rank in the RSS feed — enables "what rank are new posts?" analysis
+
+3. **"Last updated" footer** — Store `time.time()` in Dict key `last_polled` during each poll cycle. Display as relative time in UI footer.
+
+4. **Relative timestamps** — `_relative_time(unix_ts)` helper: "just now" / "5m ago" / "2h ago" / "3d ago". Pure Python, no dependencies.
+
+5. **UI polish** — Card-style table with `border-radius`, `box-shadow`, hover states, subtle `#fafafa` background, subtitle text. Still f-string HTML.
+
+6. **Content snippet from RSS** — Extract `<content>` HTML from Atom feed, strip tags via `re.sub`, truncate to 200 chars. Show as subtitle under each post title. Adds `content_length` to Amplitude event properties.
+
+7. **Question detection** — `is_question: title.endswith("?")` added to Amplitude event properties. Enables "what fraction of posts are questions?" analysis.
+
+**Verify:** `modal serve app.py` — check all enhancements render correctly. Check Amplitude for `mirror_page_viewed` events and enriched `reddit_post_ingested` properties.
+
+---
+
 ## Phase 5: Deploy & End-to-End Verification
 
 **Goal:** Deploy to production and verify the full pipeline.

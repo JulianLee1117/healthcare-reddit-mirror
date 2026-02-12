@@ -1,6 +1,6 @@
 # Process Log
 
-<!-- Phase-by-phase execution log for the healthcare-reddit-mirror project. For each phase, record the REAL time: timestamp (YYYY-MM-DD HH:MM TZ), results of implementation and verification, rationale behind any choices or deviations from PLAN.md. Keep it easy to read for mere humans.-->
+<!-- Phase-by-phase execution log for the healthcare-reddit-mirror project. For each phase, calculate and record the REAL time: timestamp (YYYY-MM-DD HH:MM TZ), results of implementation and verification, rationale behind any choices or deviations from PLAN.md. Keep it easy to read for mere humans.-->
 
 ## Phase 0: Verify Assumptions — 2026-02-12 13:23 PST
 
@@ -143,3 +143,17 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 - All links have `target="_blank" rel="noopener"`, open correct Reddit pages
 - `/healthz` returns `{"status":"ok"}`
 - No deviations from PLAN.md
+
+## Phase 4b: Enhancements — 2026-02-12
+
+### Implementation (7 enhancements)
+1. **Server-side page view tracking** — `_track_page_view()` sends `mirror_page_viewed` to Amplitude via FastAPI `BackgroundTasks` (non-blocking). `device_id: "reddit-mirror-web"` distinguishes web events from poller events. `os.environ.get()` + try/except ensures graceful degradation. Added `secrets` to `serve` function.
+2. **Richer Amplitude event properties** — `post_age_minutes`, `post_position` added to `reddit_post_ingested` events. Uses `enumerate()` + `time.time()` at send time.
+3. **"Last updated" footer** — `posts_dict["last_polled"] = time.time()` in `poll_reddit()`. Rendered as relative time in footer.
+4. **Relative timestamps** — `_relative_time(unix_ts)` helper: "just now" / "5m ago" / "2h ago" / "3d ago". "Posted" column added to table.
+5. **UI polish** — Card-style table (`border-radius: 8px`, `box-shadow`), hover states, `#fafafa` background, subtitle, improved typography.
+6. **Content snippet from RSS** — `<content>` HTML extracted, tags stripped via `re.sub(r"<[^>]+>", "")`, truncated to 200 chars. Shown under title with `text-overflow: ellipsis`.
+7. **Question detection** — `is_question: title.endswith("?")` added to Amplitude event properties.
+
+### Verification
+- Pending: `modal run app.py::poll_reddit` then `modal serve app.py`
