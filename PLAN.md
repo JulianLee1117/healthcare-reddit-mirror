@@ -91,6 +91,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
      ```python
      {
          "user_id": "reddit-mirror",
+         "device_id": "reddit-mirror",              # required for insert_id dedup
          "event_type": "reddit_post_ingested",
          "time": int(post["created_utc"] * 1000),  # ms
          "insert_id": f"reddit-{post['id']}",       # dedup safety net

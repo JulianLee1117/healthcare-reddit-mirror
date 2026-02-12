@@ -99,3 +99,29 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
   - `author`: `'NewAlexandria'` (`/u/` stripped)
   - `created_utc`: `1740343022.0` (Unix timestamp, correct for 2025-02-23T20:37:02+00:00)
 - No deviations from PLAN.md (other than the `ET.ParseError` addition noted above)
+
+## Phase 3: Amplitude Integration — 2026-02-12 14:40 PST
+
+### Pre-req
+- Created Amplitude org "healthcare-reddit-mirror" (Org ID: 408215, Starter Plan)
+- Created Modal secret: `modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>`
+- Verified secret exists via `modal secret list`
+
+### Plan Update
+- **Added `device_id: "reddit-mirror"` to event schema**: Amplitude `insert_id` dedup only works within the same `device_id`. Without it, duplicate events could slip through on crash-recovery re-sends. Updated PLAN.md Phase 3 accordingly.
+
+### Implementation
+- Added `AMPLITUDE_URL` constant
+- Implemented `_send_to_amplitude(posts: list[dict]) -> None`:
+  - Reads `AMPLITUDE_API_KEY` from `os.environ` (injected by Modal secret)
+  - Builds event list with `user_id`, `device_id`, `event_type`, `time` (ms), `insert_id`, `event_properties` (title, link, author)
+  - Single POST via httpx `json=` param (sets Content-Type automatically)
+  - Error handling: catches `httpx.HTTPError`, logs but doesn't crash
+- Added `secrets=[modal.Secret.from_name("amplitude-secret")]` to `poll_reddit` decorator
+- Added `if new_posts: _send_to_amplitude(new_posts)` guard — only sends when there are genuinely new posts
+- Amplitude call happens **before** Dict writes (front_page, seen_ids) — if Amplitude fails, posts remain "unseen" and will be retried next cycle. Combined with `insert_id` dedup, this is safe.
+
+### Verification
+- **Run 1:** Cleared `seen_ids` → `modal run app.py::poll_reddit` → "Amplitude: sent 25 events, status 200"
+- **Run 2:** Same command → "Polled 25 posts, 0 new: []" — no Amplitude call made (dedup working)
+- No deviations from PLAN.md (other than the `device_id` addition noted above)

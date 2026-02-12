@@ -10,6 +10,7 @@ posts_dict = modal.Dict.from_name("healthcare-reddit-posts", create_if_missing=T
 
 RSS_URL = "https://www.reddit.com/r/healthcare.rss"
 USER_AGENT = "modal:healthcare-reddit-mirror:v1.0 (by /u/health-mirror-bot)"
+AMPLITUDE_URL = "https://api2.amplitude.com/2/httpapi"
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 log = logging.getLogger(__name__)
@@ -54,7 +55,44 @@ def _fetch_reddit() -> list[dict] | None:
     return posts
 
 
-@app.function(image=image, schedule=modal.Cron("*/5 * * * *"))
+def _send_to_amplitude(posts: list[dict]) -> None:
+    import os
+
+    import httpx
+
+    api_key = os.environ["AMPLITUDE_API_KEY"]
+    events = [
+        {
+            "user_id": "reddit-mirror",
+            "device_id": "reddit-mirror",
+            "event_type": "reddit_post_ingested",
+            "time": int(p["created_utc"] * 1000),
+            "insert_id": f"reddit-{p['id']}",
+            "event_properties": {
+                "title": p["title"],
+                "link": p["link"],
+                "author": p["author"],
+            },
+        }
+        for p in posts
+    ]
+    try:
+        resp = httpx.post(
+            AMPLITUDE_URL,
+            json={"api_key": api_key, "events": events},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        log.warning("Amplitude: sent %d events, status %d", len(events), resp.status_code)
+    except httpx.HTTPError as e:
+        log.error("Amplitude send failed: %s", e)
+
+
+@app.function(
+    image=image,
+    schedule=modal.Cron("*/5 * * * *"),
+    secrets=[modal.Secret.from_name("amplitude-secret")],
+)
 def poll_reddit():
     posts = _fetch_reddit()
     if posts is None:
@@ -69,6 +107,9 @@ def poll_reddit():
 
     new_ids = current_ids - seen_ids
     new_posts = [p for p in posts if p["id"] in new_ids]
+
+    if new_posts:
+        _send_to_amplitude(new_posts)
 
     # Write front_page first (UI freshness), then seen_ids
     posts_dict["front_page"] = posts
