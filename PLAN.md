@@ -5,18 +5,25 @@
 Build and deploy a web app on Modal that continuously polls r/healthcare, sends new-post events to Amplitude, and displays current front-page posts in a web UI. The code must be correct, race-free, maintainable, concise, and secure.
 
 **Architecture:** Single `app.py` file deployed on Modal with two functions:
-1. A **scheduled poller** (every 5 min) that fetches Reddit, detects new posts, sends events to Amplitude, and caches posts in Modal Dict
+1. A **scheduled poller** (every 5 min) that fetches Reddit RSS, detects new posts, sends events to Amplitude, and caches posts in Modal Dict
 2. An **ASGI web app** (FastAPI) that reads cached posts from Modal Dict and renders server-side HTML
 
-**Why this approach:**
-- Caching posts in Modal Dict keeps the web UI fast (<10ms) and avoids burning Reddit's unauthenticated rate limit (~10 req/min) on page loads
+**Why RSS instead of JSON/OAuth:**
+- Reddit blocks `.json` requests from cloud IPs (verified: returns 403 from Modal)
+- Reddit RSS (`/r/healthcare.rss`) returns 200 from Modal — no auth needed
+- RSS (Atom feed) contains all fields the assessment requires: `id`, `title`, `link`, `author`
+- Eliminates OAuth credential management, token refresh, and the `reddit-secret` — simpler code, fewer failure modes
+- Uses stdlib `xml.etree.ElementTree` for parsing — no extra dependencies
+
+**Why this architecture:**
+- Caching posts in Modal Dict keeps the web UI fast (<10ms) and avoids burning Reddit rate limits on page loads
 - `modal.Dict` provides atomic key-level get/put — no file-locking issues like Volume would have
-- `modal.Cron` likely skips overlapping invocations (standard serverless pattern, not explicitly documented). Even if it doesn't, Amplitude `insert_id` dedup prevents duplicate events — the only consequence would be a redundant Amplitude POST
+- `modal.Cron` likely skips overlapping invocations (standard serverless pattern). Even if it doesn't, Amplitude `insert_id` dedup prevents duplicate events
 - Amplitude's `insert_id` dedup (7-day window) is the safety net if the poller crashes after sending events but before updating `seen_ids`
 
 ---
 
-## Phase 1: Project Scaffolding & Modal Setup
+## Phase 1: Project Scaffolding & Modal Setup ✅
 
 **Goal:** Get a minimal Modal app deployed with a "hello world" web endpoint.
 
@@ -32,18 +39,27 @@ Create the Modal app skeleton:
 
 ---
 
-## Phase 2: Reddit Polling
+## Phase 2: Reddit Polling via RSS
 
-**Goal:** Fetch r/healthcare.json, parse posts, and store them in Modal Dict.
+**Goal:** Fetch r/healthcare posts via RSS, parse the Atom feed, and store posts in Modal Dict.
+
+**No credentials needed.** Reddit RSS is unauthenticated and reachable from Modal (verified: 200 OK, 25 entries).
 
 **Add to `app.py`:**
 
 1. Define `modal.Dict.from_name("healthcare-reddit-posts", create_if_missing=True)`
-2. Define constants: `REDDIT_URL`, `USER_AGENT` (must be descriptive, e.g. `modal:healthcare-reddit-mirror:v1.0 (by /u/health-mirror-bot)`)
+2. Define constants: `RSS_URL = "https://www.reddit.com/r/healthcare.rss"`, `USER_AGENT`
 3. Implement `_fetch_reddit() -> list[dict] | None`:
-   - `httpx.get(REDDIT_URL, headers={"User-Agent": USER_AGENT}, timeout=15, follow_redirects=True)`
-   - Parse `data["data"]["children"]` — extract per post: `id`, `title`, `author`, `permalink`, full `link` (`https://www.reddit.com` + permalink), `score`, `num_comments`, `created_utc`
-   - Return `None` on any HTTP error (log it, don't crash)
+   - GET `RSS_URL` with `User-Agent` header via httpx
+   - Parse response as Atom XML using `xml.etree.ElementTree`
+   - Namespace: `{"atom": "http://www.w3.org/2005/Atom"}`
+   - Extract per entry:
+     - `id`: from `<id>t3_xxx</id>` — strip `t3_` prefix for bare post ID
+     - `title`: from `<title>` text
+     - `link`: from `<link href="...">` attribute — already a full Reddit URL
+     - `author`: from `<author><name>/u/Username</name>` — strip `/u/` prefix
+     - `created_utc`: from `<published>` ISO 8601 → parse to Unix timestamp
+   - Return `None` on any error (log it, don't crash)
 4. Implement `poll_reddit()` function with `@app.function(schedule=modal.Cron("*/5 * * * *"))`:
    - Call `_fetch_reddit()`
    - Load `seen_ids` set from Dict (default to empty set if KeyError)
@@ -105,7 +121,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 1. Use `html.escape()` from stdlib for XSS prevention on user-generated Reddit content
 2. Implement `_render_html(posts: list[dict]) -> str`:
-   - HTML table with columns: score, title (as link), author, comment count
+   - HTML table with columns: title (as link), author
    - All dynamic values run through `html.escape()`
    - Clean minimal CSS (system font stack, max-width 800px, responsive)
    - Empty state message if no posts yet ("The poller runs every 5 minutes — check back shortly")
@@ -147,14 +163,26 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 | Decision | Choice | Why |
 |---|---|---|
+| Reddit data source | RSS (Atom feed) at `/r/healthcare.rss` | `.json` returns 403 from cloud IPs; RSS returns 200, has all required fields (title, link, author, id), no credentials needed |
 | State storage | `modal.Dict` | Atomic get/put, no file locking, simple for small structured data |
 | Polling frequency | Every 5 min (`modal.Cron`) | r/healthcare is low-traffic; avoids rate limits; Cron doesn't drift on redeploy |
 | Web UI data source | Read from Dict cache | Sub-10ms response, no Reddit API call per page load |
 | HTTP client | `httpx` (bundled with `fastapi[standard]`) | No extra dependency; async-capable; actively maintained |
-| Template engine | f-string with `html.escape()` | Stdlib for XSS protection; no Jinja2 dependency for ~30 lines of HTML |
+| XML parser | `xml.etree.ElementTree` (stdlib) | No extra dependency; sufficient for well-formed Atom feed |
+| Template engine | f-string with `html.escape()` | Stdlib XSS protection; no Jinja2 dependency for ~30 lines of HTML |
 | Dedup strategy | `seen_ids` set in Dict + Amplitude `insert_id` | Belt and suspenders — Dict is primary, `insert_id` is crash-recovery safety net |
 | `user_id` for Amplitude | `"reddit-mirror"` | System-generated events; satisfies 5-char minimum |
 | Write order in poller | `front_page` first, then `seen_ids` | Optimizes for UI freshness; `insert_id` handles any duplicate sends |
+
+## Assessment Field Mapping (RSS → Requirements)
+
+| Assessment Requirement | RSS Source | Transformation |
+|---|---|---|
+| Post `id` (dedup key) | `<id>t3_1iwjv98</id>` | Strip `t3_` prefix → `1iwjv98` |
+| `title` (Amplitude + UI) | `<title>` text | None (use as-is) |
+| `link` (Amplitude + UI) | `<link href="https://...">` | Read `href` attribute (already full URL) |
+| `author` (Amplitude + UI) | `<author><name>/u/Foo</name>` | Strip `/u/` prefix → `Foo` |
+| Timestamp (Amplitude `time`) | `<published>2026-02-12T21:02:11+00:00</published>` | Parse ISO 8601 → epoch milliseconds |
 
 ## Race Condition Analysis
 
@@ -164,5 +192,5 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ## Files to Create/Modify
 
-- **`app.py`** (new) — Entire application: Modal app, poller, FastAPI web app, HTML renderer, Reddit fetcher, Amplitude sender
+- **`app.py`** (new) — Entire application: Modal app, poller, FastAPI web app, HTML renderer, RSS fetcher, Amplitude sender
 - **`README.md`** (modify) — Deployment instructions and architecture overview
