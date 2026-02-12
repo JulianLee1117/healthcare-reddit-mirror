@@ -125,3 +125,21 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 - **Run 1:** Cleared `seen_ids` → `modal run app.py::poll_reddit` → "Amplitude: sent 25 events, status 200"
 - **Run 2:** Same command → "Polled 25 posts, 0 new: []" — no Amplitude call made (dedup working)
 - No deviations from PLAN.md (other than the `device_id` addition noted above)
+
+## Phase 4: Web UI — 2026-02-12
+
+### Plan Review
+- Phase 4 plan verified optimal — no changes needed.
+
+### Implementation
+- `_render_html(posts)`: HTML table (title as link, author), `html.escape()` on all dynamic values, system font CSS, empty state message, `<meta http-equiv="refresh" content="300">`
+- Updated `GET /` to read `front_page` from Dict (KeyError → empty list)
+- Added `GET /healthz` → `{"status": "ok"}`
+- Added `@modal.concurrent(max_inputs=100)` to serve function (decorator order verified in Phase 0)
+
+### Verification
+- `modal serve app.py` → 25 posts rendered correctly at dev URL
+- XSS escaping confirmed (e.g., `they're` → `they&#x27;re` in HTML source)
+- All links have `target="_blank" rel="noopener"`, open correct Reddit pages
+- `/healthz` returns `{"status":"ok"}`
+- No deviations from PLAN.md

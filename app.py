@@ -126,19 +126,77 @@ def poll_reddit():
     )
 
 
-# --- Web UI (Phase 1 skeleton) ---
+# --- Web UI ---
 
 import fastapi
 
 web_app = fastapi.FastAPI()
 
 
+def _render_html(posts: list[dict]) -> str:
+    import html
+
+    if not posts:
+        rows = (
+            '<tr><td colspan="2" style="text-align:center;color:#888;">'
+            "The poller runs every 5 minutes — check back shortly."
+            "</td></tr>"
+        )
+    else:
+        rows = ""
+        for p in posts:
+            title = html.escape(p["title"])
+            link = html.escape(p["link"])
+            author = html.escape(p["author"])
+            rows += (
+                f'<tr><td><a href="{link}" target="_blank" rel="noopener">'
+                f"{title}</a></td><td>{author}</td></tr>\n"
+            )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="300">
+    <title>r/healthcare — Mirror</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #222; }}
+        h1 {{ font-size: 1.4rem; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #eee; }}
+        th {{ font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }}
+        a {{ color: #1a0dab; text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <h1>r/healthcare — Front Page</h1>
+    <table>
+        <thead><tr><th>Title</th><th>Author</th></tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+</body>
+</html>"""
+
+
 @web_app.get("/")
 def home():
-    return fastapi.responses.HTMLResponse("Hello")
+    try:
+        posts = posts_dict["front_page"]
+    except KeyError:
+        posts = []
+    return fastapi.responses.HTMLResponse(content=_render_html(posts))
+
+
+@web_app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 
 @app.function(image=image)
+@modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def serve():
     return web_app
