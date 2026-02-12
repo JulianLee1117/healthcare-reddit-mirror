@@ -78,3 +78,24 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 - More robust: no token expiry, no OAuth failure modes
 - Stdlib-only parsing: `xml.etree.ElementTree` vs httpx JSON (httpx still used for HTTP)
 - All assessment requirements still met
+
+## Phase 2: Reddit Polling via RSS — 2026-02-12
+
+### Implementation
+- Rewrote `_fetch_reddit()`: RSS fetch via httpx + Atom XML parsing via `xml.etree.ElementTree`
+- Constants: `RSS_URL`, `USER_AGENT`, `_ATOM_NS` (namespace dict)
+- Field extraction: `id` (strip `t3_`), `title`, `link` (from `href` attr), `author` (strip `/u/`), `created_utc` (ISO 8601 → `datetime.fromisoformat().timestamp()`)
+- Error handling catches both `httpx.HTTPError` and `ET.ParseError`
+- `poll_reddit()` unchanged (dedup logic, Dict writes already correct from Phase 1 skeleton)
+- Plan update: added `ET.ParseError` to error handling (was missing from original Phase 2 plan)
+
+### Verification
+- **Run 1:** `modal run app.py::poll_reddit` → 25 posts fetched, 25 new (first run, empty `seen_ids`)
+- **Run 2:** Same command → 25 posts fetched, 0 new (dedup working — `seen_ids` persisted correctly)
+- **Dict spot-check:** Read back `front_page[0]` — all 5 fields present with correct types:
+  - `id`: `'1iwjv98'` (bare ID, `t3_` stripped)
+  - `title`: `'Experimenting with polls and surveys'`
+  - `link`: `'https://www.reddit.com/r/healthcare/comments/1iwjv98/experimenting_with_polls_and_surveys/'`
+  - `author`: `'NewAlexandria'` (`/u/` stripped)
+  - `created_utc`: `1740343022.0` (Unix timestamp, correct for 2025-02-23T20:37:02+00:00)
+- No deviations from PLAN.md (other than the `ET.ParseError` addition noted above)

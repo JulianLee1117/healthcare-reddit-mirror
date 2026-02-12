@@ -8,43 +8,47 @@ image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[stan
 
 posts_dict = modal.Dict.from_name("healthcare-reddit-posts", create_if_missing=True)
 
-REDDIT_URL = "https://www.reddit.com/r/healthcare.json"
+RSS_URL = "https://www.reddit.com/r/healthcare.rss"
 USER_AGENT = "modal:healthcare-reddit-mirror:v1.0 (by /u/health-mirror-bot)"
+_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 log = logging.getLogger(__name__)
 
 
 def _fetch_reddit() -> list[dict] | None:
+    import xml.etree.ElementTree as ET
+    from datetime import datetime
+
     import httpx
 
     try:
         resp = httpx.get(
-            REDDIT_URL,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "application/json",
-            },
-            timeout=15,
-            follow_redirects=True,
+            RSS_URL, headers={"User-Agent": USER_AGENT}, timeout=15
         )
         resp.raise_for_status()
-    except httpx.HTTPError as e:
+        root = ET.fromstring(resp.text)
+    except (httpx.HTTPError, ET.ParseError) as e:
         log.error("Reddit fetch failed: %s", e)
         return None
 
     posts = []
-    for child in resp.json()["data"]["children"]:
-        d = child["data"]
+    for entry in root.findall("atom:entry", _ATOM_NS):
+        post_id = entry.findtext("atom:id", "", _ATOM_NS).removeprefix("t3_")
+        link_el = entry.find("atom:link", _ATOM_NS)
+        author = (
+            entry.findtext("atom:author/atom:name", "", _ATOM_NS)
+            .removeprefix("/u/")
+        )
+        published = entry.findtext("atom:published", "", _ATOM_NS)
         posts.append(
             {
-                "id": d["id"],
-                "title": d["title"],
-                "author": d["author"],
-                "permalink": d["permalink"],
-                "link": "https://www.reddit.com" + d["permalink"],
-                "score": d["score"],
-                "num_comments": d["num_comments"],
-                "created_utc": d["created_utc"],
+                "id": post_id,
+                "title": entry.findtext("atom:title", "", _ATOM_NS),
+                "link": link_el.get("href", "") if link_el is not None else "",
+                "author": author,
+                "created_utc": datetime.fromisoformat(published).timestamp()
+                if published
+                else 0.0,
             }
         )
     return posts

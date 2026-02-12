@@ -59,7 +59,7 @@ Create the Modal app skeleton:
      - `link`: from `<link href="...">` attribute — already a full Reddit URL
      - `author`: from `<author><name>/u/Username</name>` — strip `/u/` prefix
      - `created_utc`: from `<published>` ISO 8601 → parse to Unix timestamp
-   - Return `None` on any error (log it, don't crash)
+   - Catch both `httpx.HTTPError` and `xml.etree.ElementTree.ParseError` — return `None` on any error (log it, don't crash)
 4. Implement `poll_reddit()` function with `@app.function(schedule=modal.Cron("*/5 * * * *"))`:
    - Call `_fetch_reddit()`
    - Load `seen_ids` set from Dict (default to empty set if KeyError)
