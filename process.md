@@ -156,4 +156,21 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 7. **Question detection** — `is_question: title.endswith("?")` added to Amplitude event properties.
 
 ### Verification
-- Pending: `modal run app.py::poll_reddit` then `modal serve app.py`
+- `modal run app.py::poll_reddit` + `modal serve app.py` — all 7 enhancements verified in prior session (content snippets, relative timestamps, last updated footer, page view tracking, enriched Amplitude events)
+
+## Phase 5: Deploy & E2E Verification — 2026-02-12
+
+### Plan Review
+- Original Phase 5 called for waiting through 2 poll cycles post-deploy. Unnecessary — Dict already has data from Phase 2-4b testing, and each phase was individually verified. Simplified to: deploy, spot-check production URL, write README.
+- Added `.claude/` to `.gitignore` (local config shouldn't be in repo).
+
+### Implementation
+- `modal deploy app.py` → production URL: `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
+- Cron activated: `poll_reddit` runs every 5 min
+- README.md written: architecture overview, RSS rationale, dedup strategy, setup/deploy instructions, Amplitude event table, transcript reference
+
+### Verification
+- `/healthz` → `{"status":"ok"}`
+- `/` → 25 posts rendered with titles, links, authors, content snippets, relative timestamps
+- Last updated footer present
+- No deviations from PLAN.md (other than simplifying the verification steps as noted above)

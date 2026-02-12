@@ -170,7 +170,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ---
 
-## Phase 5: Deploy & End-to-End Verification
+## Phase 5: Deploy & End-to-End Verification ✅
 
 **Goal:** Deploy to production and verify the full pipeline.
 
