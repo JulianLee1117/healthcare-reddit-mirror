@@ -35,9 +35,8 @@ body {
 /* ---- Header ---- */
 
 .header {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .header-top {
@@ -97,36 +96,6 @@ body {
 .tab--active {
   color: var(--accent);
   border-bottom-color: var(--accent);
-}
-
-/* ---- Stats bar ---- */
-
-.stats-bar {
-  display: flex;
-  gap: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.stat {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-}
-
-.stat-value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  color: var(--secondary);
 }
 
 /* ---- Posts ---- */
@@ -235,6 +204,11 @@ body {
 
 .post-author:hover {
   color: var(--accent);
+}
+
+.post-score,
+.post-comments {
+  font-variant-numeric: tabular-nums;
 }
 
 .meta-sep {

@@ -17,11 +17,11 @@ image = (
 
 posts_dict = modal.Dict.from_name("healthcare-reddit-posts", create_if_missing=True)
 
-RSS_URL = "https://www.reddit.com/r/healthcare.rss"
-RSS_NEW_URL = "https://www.reddit.com/r/healthcare/new.rss"
+REDDIT_BASE = "https://cf-reddit-relay.julian95070.workers.dev"
+HOT_URL = f"{REDDIT_BASE}/r/healthcare.json"
+NEW_URL = f"{REDDIT_BASE}/r/healthcare/new.json"
 USER_AGENT = "modal:healthcare-reddit-mirror:v1.0 (by /u/health-mirror-bot)"
 AMPLITUDE_URL = "https://api2.amplitude.com/2/httpapi"
-_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 log = logging.getLogger(__name__)
 
@@ -63,12 +63,7 @@ def _categorize_topic(title: str, content: str) -> str:
     return "other"
 
 
-def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
-    import re
-    import xml.etree.ElementTree as ET
-    from datetime import datetime
-    from html import unescape
-
+def _fetch_reddit(url: str = HOT_URL) -> list[dict] | None:
     import httpx
 
     try:
@@ -76,39 +71,27 @@ def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
             url, headers={"User-Agent": USER_AGENT}, timeout=15
         )
         resp.raise_for_status()
-        root = ET.fromstring(resp.text)
-    except (httpx.HTTPError, ET.ParseError) as e:
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as e:
         log.error("Reddit fetch failed: %s", e)
         return None
 
     posts = []
-    for entry in root.findall("atom:entry", _ATOM_NS):
-        post_id = entry.findtext("atom:id", "", _ATOM_NS).removeprefix("t3_")
-        link_el = entry.find("atom:link", _ATOM_NS)
-        author = (
-            entry.findtext("atom:author/atom:name", "", _ATOM_NS)
-            .removeprefix("/u/")
-        )
-        published = entry.findtext("atom:published", "", _ATOM_NS)
-        content_el = entry.find("atom:content", _ATOM_NS)
-        content_html = content_el.text if content_el is not None and content_el.text else ""
-        content_text = re.sub(r"<[^>]+>", "", unescape(content_html)).strip()
-        content_text = re.sub(
-            r"\s*submitted by\s+/u/\S+\s*", " ", content_text
-        ).strip()
-        content_text = re.sub(r"\s*\[link\]\s*", " ", content_text).strip()
-        content_text = re.sub(r"\s*\[comments\]\s*", " ", content_text).strip()
-        content_text = content_text[:200]
+    for child in data.get("data", {}).get("children", []):
+        p = child["data"]
+        content = (p.get("selftext") or "")[:200]
         posts.append(
             {
-                "id": post_id,
-                "title": entry.findtext("atom:title", "", _ATOM_NS),
-                "link": link_el.get("href", "") if link_el is not None else "",
-                "author": author,
-                "created_utc": datetime.fromisoformat(published).timestamp()
-                if published
-                else 0.0,
-                "content": content_text,
+                "id": p["id"],
+                "title": p["title"],
+                "link": f"https://www.reddit.com{p['permalink']}",
+                "author": p.get("author", "[deleted]"),
+                "created_utc": float(p["created_utc"]),
+                "content": content,
+                "score": p.get("score", 0),
+                "num_comments": p.get("num_comments", 0),
+                "upvote_ratio": p.get("upvote_ratio", 0),
+                "is_self": p.get("is_self", True),
             }
         )
     return posts
@@ -141,6 +124,10 @@ def _send_to_amplitude(posts: list[dict], hot_rank: dict[str, int] | None = None
                 "is_question": "?" in p["title"],
                 "topic": _categorize_topic(p["title"], p.get("content", "")),
                 "has_content": bool(p.get("content")),
+                "score": p.get("score", 0),
+                "num_comments": p.get("num_comments", 0),
+                "upvote_ratio": p.get("upvote_ratio", 0),
+                "is_self": p.get("is_self", True),
             },
         }
         for p in posts
@@ -168,8 +155,8 @@ def _send_to_amplitude(posts: list[dict], hot_rank: dict[str, int] | None = None
 def poll_reddit():
     import time
 
-    hot_posts = _fetch_reddit(RSS_URL)
-    new_posts_raw = _fetch_reddit(RSS_NEW_URL)
+    hot_posts = _fetch_reddit(HOT_URL)
+    new_posts_raw = _fetch_reddit(NEW_URL)
 
     if hot_posts is None and new_posts_raw is None:
         return

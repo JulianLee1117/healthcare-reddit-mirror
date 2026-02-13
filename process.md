@@ -374,3 +374,37 @@ Dropped two originally planned charts (New vs Returning Authors, Content Type by
 
 ### Front page ordering (no bug)
 Confirmed the front page display logic is correct: `posts_dict["front_page"] = hot_posts` stores the hot feed list in RSS order, API serves it as-is, frontend renders with `rank={i + 1}`. The order instability the user observed is Reddit's hot algorithm naturally reranking posts between page loads — expected behavior, not a mirror bug.
+
+## Phase 10: Reddit IP Block — Switch from RSS to JSON via Cloudflare Worker — 2026-02-13
+
+### Discovery
+Reddit began 403-blocking RSS feeds from Modal's cloud IPs. The block is IP-range based (not User-Agent or endpoint-specific) — tested 9 combinations across `www.reddit.com` vs `old.reddit.com`, `.rss` vs `.json`, bot UA vs browser UA. All returned 403 from Modal. Local/residential IPs still work fine.
+
+Reddit OAuth (`oauth.reddit.com`) would bypass the block, but requires manual app approval which takes up to a week.
+
+### Solution: Cloudflare Worker edge relay
+Deployed a minimal Cloudflare Worker (`cf-reddit-relay/worker.js`) that proxies requests to Reddit from Cloudflare's edge network. Cloudflare edge IPs are CDN infrastructure — Reddit does not block them. The Worker is a transparent passthrough (no caching, no transformation).
+
+- Modal poller → CF Worker → Reddit `.json` → response back to Modal
+- All polling logic, dedup, Amplitude integration, and web serving remain on Modal
+- Worker is on Cloudflare's free tier (100k requests/day; we use ~576)
+
+### Refactor: RSS/XML → JSON
+With the Worker bypassing the IP block, switched from RSS (Atom XML) to Reddit's `.json` endpoint — which is what the assessment specifies. This is cleaner code (`resp.json()` + dict access vs XML namespace wrangling) and provides additional fields not available in RSS:
+
+- `score` — post upvotes minus downvotes
+- `num_comments` — comment count
+- `upvote_ratio` — ratio of upvotes to total votes
+- `is_self` — whether it's a text post or link post
+
+### Changes
+- **`app.py`:** Replaced `_fetch_reddit()` RSS/XML parser with JSON parser. Removed `xml.etree.ElementTree`, `html.unescape`, regex boilerplate cleanup. Added `score`, `num_comments`, `upvote_ratio`, `is_self` to both post dicts and Amplitude event properties.
+- **`cf-reddit-relay/`:** New Cloudflare Worker — `worker.js` (10 lines) + `wrangler.toml`.
+- **Frontend:** Added score and comment count to post meta row. Replaced stats bar "avg score / total comments" with "active threads" (posts with 5+ comments).
+- **README:** Updated architecture diagram, setup instructions, and Amplitude event table.
+- **Cleanup:** Removed test files (`test_alternatives.py`, `test_curl.py`, `test_oauth.py`, `test_worker.py`), duplicate `cf-worker/` directory, `__pycache__/`.
+
+### Verification
+- `modal run test_worker.py` — all 3 endpoints (`.rss`, `.json`, `/new.json`) returned 200 from Modal via the Worker
+- `modal run app.py::poll_reddit` — 25 hot + 25 new posts fetched, Amplitude events sent successfully
+- `modal deploy app.py` — production cron running, web UI showing posts with score/comment data

@@ -37,6 +37,18 @@ function Post({ post, rank }) {
           </a>
           <span className="meta-sep">&middot;</span>
           <time>{relativeTime(post.created_utc)}</time>
+          {post.score != null && (
+            <>
+              <span className="meta-sep">&middot;</span>
+              <span className="post-score">{post.score} {post.score === 1 ? "pt" : "pts"}</span>
+            </>
+          )}
+          {post.num_comments != null && (
+            <>
+              <span className="meta-sep">&middot;</span>
+              <span className="post-comments">{post.num_comments} {post.num_comments === 1 ? "comment" : "comments"}</span>
+            </>
+          )}
         </div>
       </div>
     </article>
@@ -79,8 +91,6 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const questionCount = posts.filter((p) => p.title.includes("?")).length;
-
   return (
     <div className="app">
       <header className="header">
@@ -115,24 +125,6 @@ export default function App() {
       <main>
         {tab === "posts" ? (
           <>
-            {!loading && posts.length > 0 && (
-              <div className="stats-bar">
-                <div className="stat">
-                  <span className="stat-value">{posts.length}</span>
-                  <span className="stat-label">posts</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-value">{questionCount}</span>
-                  <span className="stat-label">questions</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-value">
-                    {posts.length - questionCount}
-                  </span>
-                  <span className="stat-label">links / discussion</span>
-                </div>
-              </div>
-            )}
             {loading ? (
               <div className="status">
                 <div className="spinner" />
