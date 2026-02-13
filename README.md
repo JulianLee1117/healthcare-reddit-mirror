@@ -70,6 +70,7 @@ modal run app.py::poll_reddit     # one-shot poll (useful for testing)
 | `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `topic`, `is_question`, `has_content`, `post_age_minutes`, `post_position`, `content_length` |
 
 Each `reddit_post_ingested` event uses the post author as `user_id` (format: `reddit:AuthorName`) to enable user-level analytics, and includes an `insert_id` of `reddit-{post_id}` for deduplication. Posts are auto-classified into one of 6 topics via keyword matching: `insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`, or `other`.
+Questions are identified by a simple `?` check on the title (`is_question`). 
 
 ### Amplitude dashboard
 
