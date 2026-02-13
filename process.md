@@ -360,3 +360,17 @@ Dropped two originally planned charts (New vs Returning Authors, Content Type by
 - **Resilience:** Added `retries=2` to `poll_reddit` — auto-retries on transient failures. Safe because `insert_id` deduplicates re-sent events.
 - **`requirements.txt`:** Added for local dev dependencies (`modal`, `fastapi[standard]`). Reviewer can `pip install -r requirements.txt` before `modal deploy`.
 - **README:** Added Python 3.12+ to prerequisites, `pip install -r requirements.txt` to setup steps
+
+## Bug Fix: Amplitude `post_position` derived from unordered set — 2026-02-13
+
+### Discovery
+`genuinely_new_ids` was computed via `current_ids - seen_ids` (set difference), then `genuinely_new = [all_posts[pid] for pid in genuinely_new_ids]` iterated the set in arbitrary order. The `post_position` Amplitude property used `enumerate(posts)` over this unordered list — positions were meaningless (a post ranked #5 on the hot page could be recorded as position #1 or #18).
+
+### Fix
+- Built `hot_rank = {p["id"]: i + 1 for i, p in enumerate(hot_posts)}` in `poll_reddit()` — maps each post ID to its 1-indexed position in the hot feed
+- Passed `hot_rank` dict to `_send_to_amplitude(genuinely_new, hot_rank)`
+- `_send_to_amplitude` now accepts `hot_rank: dict[str, int] | None` parameter; uses `hot_rank.get(p["id"], 0)` for `post_position` (0 = post only appeared in new feed, not on hot page)
+- Removed `enumerate()` from the event list comprehension since position is now looked up by ID
+
+### Front page ordering (no bug)
+Confirmed the front page display logic is correct: `posts_dict["front_page"] = hot_posts` stores the hot feed list in RSS order, API serves it as-is, frontend renders with `rank={i + 1}`. The order instability the user observed is Reddit's hot algorithm naturally reranking posts between page loads — expected behavior, not a mirror bug.

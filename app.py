@@ -114,12 +114,14 @@ def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
     return posts
 
 
-def _send_to_amplitude(posts: list[dict]) -> None:
+def _send_to_amplitude(posts: list[dict], hot_rank: dict[str, int] | None = None) -> None:
     import os
     import time
 
     import httpx
 
+    if hot_rank is None:
+        hot_rank = {}
     api_key = os.environ["AMPLITUDE_API_KEY"]
     now = time.time()
     events = [
@@ -134,14 +136,14 @@ def _send_to_amplitude(posts: list[dict]) -> None:
                 "link": p["link"],
                 "author": p["author"],
                 "post_age_minutes": round((now - p["created_utc"]) / 60),
-                "post_position": i + 1,
+                "post_position": hot_rank.get(p["id"], 0),
                 "content_length": len(p.get("content", "")),
                 "is_question": "?" in p["title"],
                 "topic": _categorize_topic(p["title"], p.get("content", "")),
                 "has_content": bool(p.get("content")),
             },
         }
-        for i, p in enumerate(posts)
+        for p in posts
     ]
     try:
         resp = httpx.post(
@@ -189,10 +191,13 @@ def poll_reddit():
         seen_ids = set()
 
     genuinely_new_ids = current_ids - seen_ids
+
+    # Build position lookup from hot feed so Amplitude gets real ranks
+    hot_rank = {p["id"]: i + 1 for i, p in enumerate(hot_posts)} if hot_posts else {}
     genuinely_new = [all_posts[pid] for pid in genuinely_new_ids]
 
     if genuinely_new:
-        _send_to_amplitude(genuinely_new)
+        _send_to_amplitude(genuinely_new, hot_rank)
 
     # Write front_page (hot sort) only if hot feed succeeded
     if hot_posts is not None:
