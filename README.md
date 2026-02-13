@@ -6,26 +6,34 @@ A live mirror of r/healthcare that polls Reddit every 5 minutes, sends new-post 
 
 ## Architecture
 
-Single-file ASGI app (`app.py`) deployed on Modal with two functions:
+`app.py` (backend) + React SPA (frontend), deployed on Modal:
 
-1. **Poller** (`poll_reddit`) — Cron-scheduled every 5 min. Fetches r/healthcare via RSS, deduplicates by post ID, sends `reddit_post_ingested` events to Amplitude for new posts, and caches the current front page in Modal Dict.
+1. **Poller** (`poll_reddit`) — Cron-scheduled every 5 min. Fetches r/healthcare via RSS from both `/hot` and `/new` feeds, deduplicates by post ID, sends `reddit_post_ingested` events to Amplitude for new posts, and caches the hot-sorted front page in Modal Dict.
 
-2. **Web server** (`serve`) — FastAPI app rendering server-side HTML from the Dict cache. No Reddit call per page load.
+2. **Web server** (`serve`) — FastAPI serving a React SPA + JSON API (`/api/posts`) from the Dict cache. No Reddit API call per page load (<10ms response).
 
 ```
-Reddit RSS ──> poll_reddit ──> Amplitude (reddit_post_ingested)
-                   │
-                   ▼
-              Modal Dict ──> serve (GET /) ──> HTML
+Reddit RSS (/hot + /new) ──> poll_reddit ──> Amplitude (reddit_post_ingested)
+                                  │
+                                  ▼
+                             Modal Dict ──> /api/posts ──> React SPA
 ```
 
-### Why RSS over JSON
+### Why RSS instead of .json
 
-Reddit blocks `.json` requests from cloud/datacenter IPs (returns 403 from Modal). The RSS feed (`/r/healthcare.rss`) returns 200 with no auth required and contains all needed fields: post ID, title, link, author, and timestamp. This eliminates OAuth credential management entirely.
+Reddit blocks `.json` requests from cloud/datacenter IPs (returns 403 from Modal). The RSS feed (`/r/healthcare.rss`) returns 200 with no auth required and contains all fields the assessment requires: post ID, title, link, author, and timestamp. This eliminates OAuth credential management entirely.
+
+### Dual-feed polling
+
+The poller fetches both `/r/healthcare.rss` (hot) and `/r/healthcare/new.rss` to ensure comprehensive ingestion. Reddit's hot algorithm can bury zero-engagement posts — polling `/new` catches every post. The hot feed drives the web UI display (showing the actual front page), while both feeds contribute to Amplitude events.
 
 ### Dedup strategy
 
 Two layers: a `seen_ids` set in Modal Dict (primary) and Amplitude's `insert_id` field (crash-recovery safety net). If the poller crashes after sending events but before updating `seen_ids`, the next run re-sends — but Amplitude deduplicates via `insert_id` within the same `device_id`.
+
+### State storage
+
+`modal.Dict` provides atomic per-key get/put with no configuration. r/healthcare generates ~5-10 posts/day — total data stays well under 1MB even after months. No external database needed.
 
 ## Setup
 
@@ -33,6 +41,7 @@ Two layers: a `seen_ids` set in Modal Dict (primary) and Amplitude's `insert_id`
 
 - [Modal](https://modal.com) account with `modal` CLI installed
 - [Amplitude](https://amplitude.com) project with an API key
+- [Node.js](https://nodejs.org) (for building the frontend)
 
 ### Configure secrets
 
@@ -40,9 +49,10 @@ Two layers: a `seen_ids` set in Modal Dict (primary) and Amplitude's `insert_id`
 modal secret create amplitude-secret AMPLITUDE_API_KEY=<your-key>
 ```
 
-### Deploy
+### Build & deploy
 
 ```bash
+cd frontend && npm install && npm run build && cd ..
 modal deploy app.py
 ```
 
@@ -51,15 +61,18 @@ This creates a persistent URL and activates the 5-minute cron. Posts appear in t
 ### Local development
 
 ```bash
-modal serve app.py        # hot-reloading dev server
-modal run app.py::poll_reddit  # one-shot poll (useful for testing)
+cd frontend && npm install && npm run build && cd ..
+modal serve app.py               # hot-reloading dev server
+modal run app.py::poll_reddit     # one-shot poll (useful for testing)
 ```
 
 ## Amplitude events
 
 | Event | Triggered by | Key properties |
 |---|---|---|
-| `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `post_age_minutes`, `post_position`, `is_question`, `content_length` |
+| `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `post_age_minutes`, `post_position`, `content_length`, `is_question` |
+
+Each event includes an `insert_id` of `reddit-{post_id}` for deduplication.
 
 ## Agent transcript
 

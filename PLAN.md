@@ -6,7 +6,7 @@ Build and deploy a web app on Modal that continuously polls r/healthcare, sends 
 
 **Architecture:** `app.py` backend deployed on Modal + React SPA frontend:
 1. A **scheduled poller** (every 5 min) that fetches Reddit RSS (both `/hot` and `/new`), detects new posts, sends events to Amplitude, and caches posts in Modal Dict
-2. A **FastAPI API** serving JSON endpoints (`/api/posts`, `/api/insights`) from Dict cache
+2. A **FastAPI API** serving a JSON endpoint (`/api/posts`) from Dict cache
 3. A **React SPA** (served as static files from FastAPI) that renders the UI
 
 **Why RSS instead of JSON/OAuth:**
@@ -117,7 +117,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ## Phase 4: API Endpoints ✅ (originally server-side HTML, now JSON API)
 
-**Goal:** Expose cached data as JSON API endpoints for the React frontend.
+**Goal:** Expose cached data as JSON API endpoint for the React frontend.
 
 **Endpoints in `app.py`:**
 
@@ -128,18 +128,9 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
      "last_polled": 1707753600.0
    }
    ```
-2. `GET /api/insights` — Returns aggregated analytics from Dict (conditional on Phase 6e):
-   ```json
-   {
-     "topic_counts": {"...": 12, ...},
-     "author_counts": {"user1": 5, ...},
-     "question_ratio": 0.32,
-     "total_posts_seen": 150
-   }
-   ```
-3. `GET /healthz` → `{"status": "ok"}`
-4. `GET /` — Serves the React SPA (`index.html` from built static files)
-5. `@modal.concurrent(max_inputs=100)` on the serve function
+2. `GET /healthz` → `{"status": "ok"}`
+3. `GET /` — Serves the React SPA (`index.html` from built static files)
+4. `@modal.concurrent(max_inputs=100)` on the serve function
 
 **CORS:** Add `CORSMiddleware` for local dev (`modal serve` + Vite dev server on different ports).
 
@@ -154,9 +145,9 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 1. **`post_age_minutes`** — `round((now - created_utc) / 60)` — how stale are posts at ingestion?
 2. **`post_position`** — 1-indexed rank in the RSS feed
 3. **`content_length`** — length of content snippet
-4. **`is_question`** — `title.rstrip().endswith("?")`
-5. **`feed_source`** — `"hot"`, `"new"`, or `"both"` (added in Phase 6a)
-6. **`topic`** — auto-classified healthcare topic (added in Phase 6e, conditional on data analysis in 6d)
+4. **`is_question`** — `"?" in title` (catches questions with parenthetical suffixes like `"Is it normal...? (27M)"`)
+
+~~`feed_source`~~ — Removed. In steady state, genuinely new posts are almost always first seen via `/new`, making this field uninformative.
 
 **Poller also stores:**
 - `last_polled`: `time.time()` — exposed in `/api/posts` response
@@ -184,11 +175,9 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ---
 
-## Phase 6: Comprehensive Ingestion & Growth Enhancements
+## Phase 6: Ingestion & Dashboard
 
-**Goal:** Ensure every new r/healthcare post is captured (not just front-page posts), backfill historical data, and add data-driven growth features.
-
-**Execution order:** 6a (dual-feed) → 6b (Amplitude reset) → 6c (backfill) → 6d (analyze data & design classification) → 6e (implement classification + insights) → 6f (Amplitude dashboard). This order is intentional: we collect real data before making classification decisions.
+**Goal:** Ensure every new r/healthcare post is captured (not just front-page posts) and set up an Amplitude dashboard.
 
 ### 6a: Dual-Feed Polling (Hot + New)
 
@@ -207,134 +196,34 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
    - Dedup against `seen_ids` using merged set
    - Write `front_page = hot_posts` (UI shows hot sort, per assessment requirement)
    - Send Amplitude events for all new-to-us posts from **either** feed
-   - Add `feed_source` to Amplitude event properties: `"hot"`, `"new"`, or `"both"` — enables analysis of which feed catches posts first
 4. Same `seen_ids` set covers both feeds — no double-sending
 
 **Verify:** `modal run app.py::poll_reddit` — check that posts from /new that aren't in /hot still get Amplitude events. UI should still show hot-sorted posts.
 
-### 6b: Amplitude Clean Slate
+## Phase 7: React Frontend ✅
 
-**Problem:** Amplitude events are immutable — once sent, you cannot update their properties. We already have ~25 events from Phase 2-4 testing that lack enrichments (topic, feed_source, etc.). Since `insert_id` dedup prevents re-sending, these old events would be permanently incomplete.
-
-**Solution:** Create a fresh Amplitude project within the same org (or delete events in the current project). Update the Modal secret with the new API key. This way all events — backfill and ongoing — have a consistent, complete schema.
-
-**Why this is safe:** It's a brand new assessment org with only ~25 test events. Zero cost to reset.
-
-### 6c: Historical Backfill
-
-**Goal:** Prepopulate Amplitude with historical r/healthcare posts. Solves the cold-start problem — a growth tool that launches with an empty dashboard is useless.
-
-**How RSS pagination works:** Reddit RSS supports `?after=t3_XXXXX` to paginate backward through posts. With `?limit=100`, each page returns up to 100 entries. Reddit caps total pagination at ~1000 posts. For r/healthcare (~5-10 posts/day), this covers roughly 3-6 months of history.
-
-**Implementation:**
-1. Add `backfill(pages: int = 10)` function with `@app.function` decorator (no cron — manual one-shot):
-   ```python
-   @app.function(image=image, secrets=[modal.Secret.from_name("amplitude-secret")])
-   def backfill(pages: int = 10):
-   ```
-2. Paginate through `/r/healthcare/new.rss?limit=100&after=t3_LASTID`:
-   - Fetch page → extract posts → get last post ID (`t3_` prefixed) → fetch next page
-   - `time.sleep(2)` between requests (Reddit rate limit: ~10 req/min for unauthenticated RSS)
-   - Stop when empty page or `pages` limit reached
-   - Use `?limit=100` to maximize posts per page (10 pages × 100 = up to 1000 posts)
-3. Process all collected posts:
-   - Dedup against `seen_ids` (skip already-seen posts)
-   - Send to Amplitude (with correct `created_utc` timestamps; `insert_id` makes reruns safe)
-   - Update `seen_ids`
-4. Does NOT overwrite `front_page` — that stays as current hot-sort posts from regular polling
-5. Does NOT classify topics or update aggregates yet — that comes after 6d
-
-**Note on `post_position`:** For backfilled posts, `post_position` reflects position within the /new pagination, not hot ranking. This is fine — it's still useful as chronological order.
-
-**Safety:**
-- `insert_id = f"reddit-{post_id}"` — Amplitude dedup means running backfill twice is harmless
-- `seen_ids` dedup prevents double-processing
-- No cron — only runs when manually invoked via `modal run app.py::backfill`
-
-**Verify:** `modal run app.py::backfill` → check Amplitude for historical events with old timestamps. Check that `seen_ids` grew.
-
-### 6d: Analyze Data & Design Classification (Manual Step)
-
-**Goal:** Examine the backfilled data to design topic categories that actually fit r/healthcare's content. This is intentionally a manual analysis step — not code.
-
-**Why defer:** We analyzed 27 current posts against the originally proposed keyword categories. Results:
-- **48-52% of posts fell into "other"** — the taxonomy doesn't describe what r/healthcare actually contains
-- Missing topics: health IT/EHR, pharmacy/medication access, medical research, patient rights
-- Keyword overlap: "hospital", "doctor", "insurance" trigger wrong categories depending on context
-- The subreddit is less consumer-oriented than assumed — significant health IT professional, policy analyst, and healthcare worker presence
-
-**Process:**
-1. After backfill, export or browse Amplitude events to see ~1000 post titles
-2. Manually identify natural topic clusters in the actual data
-3. Design categories with minimal "other" bucket (<20% target)
-4. Choose keywords per category that minimize cross-contamination
-5. Document the final taxonomy before implementing
-
-**Decision point:** After seeing the data, we may decide:
-- Topic classification adds real value → implement in 6e
-- Topics are too noisy/overlapping → skip classification, keep insights simpler (just volume, question ratio, top authors)
-- A different enrichment is more interesting (e.g., sentiment, post type: question vs news vs discussion)
-
-### 6e: Classification & Insights (Conditional on 6d)
-
-**Goal:** Implement topic classification and insights aggregation based on 6d findings.
-
-**Implementation (specifics TBD after 6d):**
-1. `_classify_topic(title: str, content: str) -> str` — keyword-based, categories from 6d analysis
-2. Add `topic` to Amplitude event properties and post dicts
-3. Update rolling aggregates in Dict during `poll_reddit()`:
-   - `topic_counts`: `dict[str, int]`
-   - `author_counts`: `dict[str, int]`
-   - `total_posts_seen`: running total
-   - `question_count`: posts ending with `?`
-4. Expose via `GET /api/insights`
-5. Re-run backfill to retroactively classify historical posts (requires Amplitude reset or new `insert_id` scheme)
-
-**If classification is skipped:** Insights still include author_counts, question_count, total_posts_seen, post volume over time. These don't require topic classification and are still valuable.
-
-### 6f: Amplitude Dashboard Setup
-
-**Goal:** Configure 3-4 charts in Amplitude that tell a growth story about r/healthcare. Screenshot in README.
-
-**Charts (core — always available):**
-1. **Post volume over time** — `reddit_post_ingested` event count, daily granularity
-2. **Question ratio trend** — `is_question = true` as % of total, over time
-3. **Ingestion freshness** — average `post_age_minutes` over time (are we catching posts quickly?)
-
-**Charts (conditional on 6e):**
-4. **Topic distribution** — breakdown by `topic` event property (only if classification is implemented)
-
-**Deliverable:** Screenshot of dashboard added to README under "## Amplitude Dashboard" section.
-
----
-
-## Phase 7: React Frontend
-
-**Goal:** Replace the f-string server-side HTML with React.
+**Goal:** Replace the f-string server-side HTML with a React SPA.
 
 **Architecture:**
 - React SPA built with Vite (`frontend/` directory)
-- Built static files served from FastAPI via `StaticFiles` mount
+- Built static files served from FastAPI via `StaticFiles` mount (with `check_dir=False` since the directory only exists inside the Modal container)
 - Modal image includes the pre-built `frontend/dist/` via `add_local_dir()`
-- API calls to `/api/posts` and `/api/insights`
+- Fetches from `GET /api/posts`
 
-**Pages/Routes (React Router):**
-1. **`/`** — Front page posts table (title as link, author, relative timestamp, content snippet, topic badge)
-2. **`/insights`** — Analytics dashboard with topic distribution chart, top authors, question ratio, post velocity
+**UI:** Editorial design — Instrument Serif + Outfit fonts, sage green accent (#2D6A4F), warm off-white background, staggered fade-in animations on page load. Posts list with title (linked), content snippet, author (linked to profile), and relative timestamp.
 
 **Implementation:**
-1. `npm create vite@latest frontend -- --template react` (or similar)
-2. Design UI using frontend-design skill
-3. Fetch from `/api/posts` and `/api/insights` endpoints
-4. Build: `cd frontend && npm run build`
-5. Update `app.py`:
-   - Remove `_render_html()`, `_relative_time()`, `_track_page_view()` (moved to React)
-   - Add `app.add_local_dir("frontend/dist", remote_path="/frontend/dist")` to Modal image
-   - Mount `StaticFiles(directory="/frontend/dist")` in FastAPI
-   - Serve `index.html` as catch-all for client-side routing
-6. Update Modal image if Node.js build step needed (or pre-build locally)
+1. Created `frontend/` with Vite + React (package.json, vite.config.js, index.html, src/)
+2. `App.jsx`: fetches `/api/posts`, renders posts list, auto-refreshes every 5 min
+3. `App.css`: editorial aesthetic with CSS variables, responsive layout, CSS animations
+4. Updated `app.py`:
+   - Removed `_render_html()`, `_relative_time()` (moved to React)
+   - Added `.add_local_dir("frontend/dist", remote_path="/frontend/dist")` to Modal image
+   - Added `GET /api/posts` JSON endpoint
+   - Mounted `StaticFiles` at `/assets` for JS/CSS bundles
+   - `GET /` serves `index.html` via `FileResponse`
 
-**Verify:** `modal serve app.py` → visit URL, confirm React app loads, posts render, `/insights` route works.
+**Verify:** `modal serve app.py` → React app loads, 25 posts render from API, all links work, animations smooth.
 
 ---
 
@@ -356,32 +245,19 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 ## Data Store: Modal Dict Schema
 
 **Why Modal Dict over an external database:**
-- r/healthcare is ~5-10 posts/day. Even with full backfill, total data is ~3000 posts / <1MB.
-- Access patterns are pure key-value: write aggregates in poller, read in API. No queries, joins, or transactions needed.
+- r/healthcare is ~5-10 posts/day. Total data is <1MB even after months.
+- Access patterns are pure key-value: write in poller, read in API. No queries, joins, or transactions needed.
 - Modal Dict provides atomic per-key get/put — sufficient for our read/write patterns.
 - Zero config, zero cost, zero latency (same infrastructure as the app).
 - Adding Postgres/SQLite would be over-engineering. The assessment says "if needed" — it's not.
 
 **Dict: `healthcare-reddit-posts`**
 
-**Core keys (always present):**
-
 | Key | Type | Written by | Read by | Description |
 |---|---|---|---|---|
 | `front_page` | `list[dict]` | `poll_reddit` | `GET /api/posts` | Current hot-sorted posts (~25). Each dict: `{id, title, link, author, created_utc, content}` |
-| `seen_ids` | `set[str]` | `poll_reddit`, `backfill` | `poll_reddit`, `backfill` | All post IDs ever seen. Capped at 5000 (resets to current if exceeded). Primary dedup mechanism. |
+| `seen_ids` | `set[str]` | `poll_reddit` | `poll_reddit` | All post IDs ever seen. Capped at 5000 (resets to current if exceeded). Primary dedup mechanism. |
 | `last_polled` | `float` | `poll_reddit` | `GET /api/posts` | Unix timestamp of last successful poll. Displayed as "last updated" in UI. |
-
-**Insights keys (added in Phase 6e, conditional on 6d analysis):**
-
-| Key | Type | Written by | Read by | Description |
-|---|---|---|---|---|
-| `topic_counts` | `dict[str, int]` | `poll_reddit`, `backfill` | `GET /api/insights` | Running totals per topic category (categories TBD from data analysis) |
-| `author_counts` | `dict[str, int]` | `poll_reddit`, `backfill` | `GET /api/insights` | Running totals: `{"username": 5, ...}` |
-| `total_posts_seen` | `int` | `poll_reddit`, `backfill` | `GET /api/insights` | Total unique posts ever ingested. |
-| `question_count` | `int` | `poll_reddit`, `backfill` | `GET /api/insights` | Posts where title ends with `?`. |
-
-**Size estimate:** All keys combined <100KB even after months of operation. Well within Dict limits.
 
 ## Assessment Field Mapping (RSS → Requirements)
 
@@ -398,11 +274,9 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 - **Poller writes while web reads:** Dict get/put are atomic per key — UI reads old or new value, never partial. Safe.
 - **Overlapping poller runs:** Likely skipped by Modal (standard serverless pattern, not explicitly documented). Even if overlap occurs, worst case is a redundant Amplitude POST — `insert_id` deduplicates. Safe.
 - **Poller crash between writes:** `front_page` written first (UI stays fresh). If `seen_ids` fails to persist, next run re-sends to Amplitude — `insert_id` deduplicates. Safe.
-- **Backfill concurrent with poller:** Both read-modify-write `seen_ids`. Worst case: a post is double-counted if both see it as "new" simultaneously. Amplitude deduplicates via `insert_id`. Mitigated by running backfill before enabling cron (deploy with cron disabled, run backfill, then redeploy with cron). Safe.
-- **Aggregate counters (read-modify-write):** Not truly atomic across keys, but only one writer at a time in practice (poller in steady state, backfill as one-shot). Safe.
 
 ## Files to Create/Modify
 
-- **`app.py`** — Modal app: poller (dual-feed), FastAPI API endpoints, Amplitude sender, topic classifier
-- **`frontend/`** — React SPA (Vite): posts page, insights dashboard
+- **`app.py`** — Modal app: poller (dual-feed), FastAPI API endpoint, Amplitude sender
+- **`frontend/`** — React SPA (Vite): posts page
 - **`README.md`** — Deployment instructions, architecture overview, Amplitude dashboard screenshot

@@ -243,3 +243,58 @@ Full code review of `app.py` against assessment criteria (correct, race-free, ma
 - Amplitude: sent 1 event, status 200
 - Dedup working correctly across both feeds (only genuinely new posts sent to Amplitude)
 - No deviations from PLAN.md (other than the partial failure handling addition noted above)
+
+## Phase 7: React Frontend — 2026-02-12
+
+### Plan
+Replace server-side f-string HTML (~100 lines of `_render_html()`) with a React SPA. Vite build output served from FastAPI `StaticFiles`. Design guided by frontend-design skill (typography, color, motion principles).
+
+### Implementation
+- Created `frontend/` directory: `package.json` (React 19 + Vite 6), `vite.config.js`, `index.html`, `src/main.jsx`, `src/App.jsx`, `src/App.css`
+- Initial design: editorial aesthetic — Instrument Serif + Outfit fonts, sage green accent (#2D6A4F), warm off-white background (#faf9f6), staggered fade-in animations
+- Updated `app.py`:
+  - Removed `_render_html()`, `_relative_time()` (moved client-side)
+  - Added `.add_local_dir("frontend/dist", remote_path="/frontend/dist")` to Modal image
+  - Added `GET /api/posts` JSON endpoint returning `{posts, last_polled}`
+  - Added `GET /` serving `FileResponse("/frontend/dist/index.html")`
+  - Mounted `StaticFiles` at `/assets` with `check_dir=False` (directory only exists inside Modal container)
+- `app.py`: 278 → 210 lines (net reduction despite adding JSON API)
+
+### Bug Fix: StaticFiles directory check
+- `StaticFiles(directory="/frontend/dist/assets")` raised `RuntimeError` at import time because directory only exists in Modal container, not locally
+- Fix: `check_dir=False` — skips local validation, files available at runtime in container
+
+### Verification
+- `npm run build` → `dist/index.html` (0.71 kB), `assets/index-*.css` (2.26 kB), `assets/index-*.js` (196.27 kB)
+- `modal serve app.py` → all endpoints 200: `/api/posts` (25 posts), `/` (React SPA), `/healthz`, `/assets/*.css`
+- Deployed to production
+
+## Phase 7b: Restyle — Internal Tool Aesthetic — 2026-02-12
+
+### Rationale
+Initial editorial design (serif fonts, warm tones, staggered animations) read like a consumer news reader, not a growth engineer's internal tool. Restyled to match internal tool conventions (Linear, Notion-style).
+
+### Changes
+- **Font**: Instrument Serif + Outfit → Inter (standard for dashboards/internal tools)
+- **Color**: Sage green accent (#2D6A4F) → blue (#2563eb), warm off-white (#faf9f6) → clean white (#ffffff)
+- **Layout**: 720px → 860px max-width, tighter padding, data-dense rows
+- **New: Stats bar** — post count, question count, links/discussion count in a surface-colored card at top
+- **New: Rank numbers** — 1-indexed position for each post
+- **New: Question badges** — blue "Q" tag on posts with `?` in title
+- **New: Row hover states** — subtle background highlight on mouseover
+- **Meta**: Author and time moved to same line with dot separator (was separate column)
+- **Snippets**: Clamped to 1 line (was 2) for density
+- **Removed**: Staggered fade-in animations, serif typography, editorial spacing, floating timestamp column
+
+### Size bump (second pass)
+Initial restyle text was too small (14px base, 12.25px titles). Bumped:
+- Base font: 14px → 15px
+- Post titles: 0.875rem → 1rem
+- Snippets: 0.8rem → 0.875rem
+- Meta: 0.75rem → 0.8rem
+- Stats labels, rank numbers, badges all bumped proportionally
+
+### Verification
+- Built and deployed to production
+- 25 posts render with ranks, Q badges, stats bar, readable type sizes
+- Live at `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
