@@ -2,7 +2,7 @@
 
 A live mirror of r/healthcare that polls Reddit every 5 minutes, sends new-post events to Amplitude, and displays the current front page in a web UI.
 
-**Live:** https://julianlee1117--healthcare-reddit-mirror-serve.modal.run
+**Live:** https://lotus-health--reddit-mirror-serve.modal.run
 
 ## Architecture
 
@@ -39,19 +39,16 @@ Two layers: a `seen_ids` set in Modal Dict (primary) and Amplitude's `insert_id`
 
 ### Prerequisites
 
+- Python 3.12+
 - [Modal](https://modal.com) account with `modal` CLI installed
 - [Amplitude](https://amplitude.com) project with an API key
 - [Node.js](https://nodejs.org) (for building the frontend)
 
-### Configure secrets
+### Install & deploy
 
 ```bash
+pip install -r requirements.txt
 modal secret create amplitude-secret AMPLITUDE_API_KEY=<your-key>
-```
-
-### Build & deploy
-
-```bash
 cd frontend && npm install && npm run build && cd ..
 modal deploy app.py
 ```
@@ -71,13 +68,12 @@ modal run app.py::poll_reddit     # one-shot poll (useful for testing)
 | Event | Triggered by | Key properties |
 |---|---|---|
 | `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `topic`, `is_question`, `has_content`, `post_age_minutes`, `post_position`, `content_length` |
-| `reddit_poll_completed` | Poller (every cycle) | `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`, `question_count`, `question_ratio` |
 
 Each `reddit_post_ingested` event uses the post author as `user_id` (format: `reddit:AuthorName`) to enable user-level analytics, and includes an `insert_id` of `reddit-{post_id}` for deduplication. Posts are auto-classified into one of 6 topics via keyword matching: `insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`, or `other`.
 
 ### Amplitude dashboard
 
-Three charts built on the enriched event data:
+Three charts built on the enriched event data, embedded in the web UI's **Analytics** tab:
 
 | Chart | Type | What it shows | Growth insight |
 |---|---|---|---|
@@ -85,6 +81,10 @@ Three charts built on the enriched event data:
 | **Questions by Topic** | Bar (filtered `is_question=true`, grouped by `topic`) | Where people are actively asking for help | Pain point discovery — questions represent unmet needs a health product could address |
 | **Post Volume by Day** | Line/bar (daily event count) | Community posting activity over time | Channel health monitoring — is the subreddit active enough to be a growth signal? |
 
-## Agent transcript
+## Documentation
 
-This project was built with Claude Code. The full interaction transcript is in [`transcript.md`](transcript.md).
+This project was built with Claude Code.
+
+- **[`PLAN.md`](PLAN.md)** — Implementation plan, iterated on and executed phase by phase. Includes architectural decisions, rationale, race condition analysis, and data store schema.
+- **[`process.md`](process.md)** — Phase-by-phase execution log with timestamps, verification results, bugs encountered, and deviations from the plan.
+- **[`transcript.md`](transcript.md)** — Raw Claude Code agent interaction transcript.

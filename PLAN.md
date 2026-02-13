@@ -31,7 +31,7 @@ Build and deploy a web app on Modal that continuously polls r/healthcare, sends 
 **File:** `app.py`
 
 Create the Modal app skeleton:
-- `modal.App("healthcare-reddit-mirror")`
+- `modal.App("reddit-mirror")`
 - `modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]")` (httpx is included via `fastapi[standard]`)
 - A minimal FastAPI app with `GET /` returning "Hello"
 - Wire it up with `@modal.asgi_app()`
@@ -246,14 +246,11 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 3. **`has_content` property** — boolean distinguishing text posts (with body) from link-only posts. Enables content strategy analysis (what ratio of community activity is discussion vs link sharing).
 
-4. **`reddit_poll_completed` event** — new event type sent every poll cycle with aggregate stats:
-   - `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`
-   - `question_count`, `question_ratio`
-   Enables system health monitoring and post volume trend charts independent of individual post events.
-
 **Existing Amplitude data:** Old events remain with `user_id: "reddit-mirror"` and basic properties. New events get enriched schema going forward. Amplitude handles mixed schemas gracefully — no backfill needed. Amplitude dedupes via `insert_id` + `device_id`, so clearing `seen_ids` would NOT update old events (old insert_ids are already consumed).
 
-**Verify:** `modal run app.py::poll_reddit` — check Amplitude for `topic` property on new events, `reddit_poll_completed` event with aggregate stats, and author-level user entries.
+~~**`reddit_poll_completed` event**~~ — Removed. Operational telemetry (poll cycle stats) doesn't belong in an analytics platform meant for user/content events. This is infrastructure monitoring, not growth analytics — it belongs in application logs (Modal captures stdout natively). Keeping Amplitude focused on the single `reddit_post_ingested` event type shows discipline about what merits tracking.
+
+**Verify:** `modal run app.py::poll_reddit` — check Amplitude for `topic` property on new events and author-level user entries.
 
 ---
 
@@ -269,7 +266,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 | XML parser | `xml.etree.ElementTree` (stdlib) | No extra dependency; sufficient for well-formed Atom feed |
 | Frontend | React SPA (Vite) served from FastAPI `StaticFiles` | Interviewer recommended JS framework; they use React internally; enables richer UI (charts, routing) |
 | Dedup strategy | `seen_ids` set in Dict + Amplitude `insert_id` | Belt and suspenders — Dict is primary, `insert_id` is crash-recovery safety net |
-| `user_id` for Amplitude | Post author (was `"reddit-mirror"`) | Enables Amplitude user-level analytics (author frequency, retention); `"reddit-mirror-system"` for poll completion events |
+| `user_id` for Amplitude | Post author (was `"reddit-mirror"`) | Enables Amplitude user-level analytics (author frequency, retention) |
 | Write order in poller | `front_page` first, then `seen_ids` | Optimizes for UI freshness; `insert_id` handles any duplicate sends |
 
 ## Data Store: Modal Dict Schema

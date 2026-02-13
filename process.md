@@ -21,7 +21,7 @@
 - **Result:** Works with decorator order `@app.function` → `@modal.concurrent(max_inputs=100)` → `@modal.asgi_app()`
 - FastAPI HTMLResponse and JSON endpoints both work
 - Image build with `pip_install("fastapi[standard]")` succeeds (note: httpx is included via `fastapi[standard]`)
-- Served at `https://julianlee1117--asgi-test-serve-dev.modal.run/`
+- Served at `https://lotus-health--asgi-test-serve-dev.modal.run/`
 
 ### 4. Modal Cron overlap behavior
 - **Result:** Not explicitly documented in Modal's public docs
@@ -43,7 +43,7 @@
 - **Result:** `app.py` created with Modal app skeleton, FastAPI web app, `GET /` returning "Hello"
 - Image: `debian_slim(python_version="3.12").pip_install("fastapi[standard]")`
 - Decorator order: `@app.function(image=image)` → `@modal.asgi_app()` (no `@modal.concurrent` yet — that's Phase 4)
-- **Verified:** `modal serve app.py` → `curl` returned `Hello` at `https://julianlee1117--healthcare-reddit-mirror-serve-dev.modal.run/`
+- **Verified:** `modal serve app.py` → `curl` returned `Hello` at `https://lotus-health--reddit-mirror-serve-dev.modal.run/`
 - No deviations from PLAN.md
 
 ## Plan Revision: Switch from OAuth to RSS — 2026-02-12
@@ -103,7 +103,7 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 ## Phase 3: Amplitude Integration — 2026-02-12 14:40 PST
 
 ### Pre-req
-- Created Amplitude org "healthcare-reddit-mirror" (Org ID: 408215, Starter Plan)
+- Created Amplitude org and project (Starter Plan)
 - Created Modal secret: `modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>`
 - Verified secret exists via `modal secret list`
 
@@ -165,7 +165,7 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 - Added `.claude/` to `.gitignore` (local config shouldn't be in repo).
 
 ### Implementation
-- `modal deploy app.py` → production URL: `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
+- `modal deploy app.py` → production URL: `https://lotus-health--reddit-mirror-serve.modal.run`
 - Cron activated: `poll_reddit` runs every 5 min
 - README.md written: architecture overview, RSS rationale, dedup strategy, setup/deploy instructions, Amplitude event table, transcript reference
 
@@ -297,7 +297,7 @@ Initial restyle text was too small (14px base, 12.25px titles). Bumped:
 ### Verification
 - Built and deployed to production
 - 25 posts render with ranks, Q badges, stats bar, readable type sizes
-- Live at `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
+- Live at `https://lotus-health--reddit-mirror-serve.modal.run`
 
 ## Phase 8: Amplitude Enrichments & Analytics — 2026-02-12
 
@@ -308,7 +308,7 @@ With minimal data (~25 posts, one event type, static `user_id: "reddit-mirror"`)
 1. **Topic categorization** — `_categorize_topic(title, content)` keyword classifier. 5 categories (`insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`) + `other` fallback. Keywords tuned for r/healthcare content (e.g., `" ai "` with spaces to avoid matching "wait"/"said", `"epic"` for the EHR system). Added as `topic` event property on `reddit_post_ingested`.
 2. **Author as `user_id`** — Changed from static `"reddit-mirror"` to `p["author"]`. Unlocks Amplitude user analytics (new vs returning authors, posting frequency per author). `device_id` stays `"reddit-mirror"` for `insert_id` dedup continuity.
 3. **`has_content` property** — `bool(p.get("content"))`. Distinguishes text posts from link-only posts.
-4. **`reddit_poll_completed` event** — New event type sent every poll cycle (even when no new posts). Properties: `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`, `question_count`, `question_ratio`. Uses `user_id: "reddit-mirror-system"` to separate system events from author events. `insert_id: f"poll-{int(time.time())}"` for per-second uniqueness.
+4. ~~**`reddit_poll_completed` event**~~ — Removed in Phase 9. See below.
 
 ### Existing Amplitude data
 Old events remain with `user_id: "reddit-mirror"` and basic properties. No backfill — Amplitude dedupes via `insert_id` + `device_id`, so re-sending same post IDs would be silently dropped (not updated). New events get enriched schema going forward. Mixed schemas handled gracefully by Amplitude.
@@ -337,4 +337,26 @@ Dropped two originally planned charts (New vs Returning Authors, Content Type by
 ### Verification
 - `modal run app.py::poll_reddit` → 26 events sent, status 200
 - All 3 charts populated in Amplitude with correct topic classifications
-- `reddit_poll_completed` event firing each cycle with aggregate stats
+
+## Phase 9: Amplitude Cleanup & Frontend Analytics Tab — 2026-02-13
+
+### Removal: `reddit_poll_completed` event
+- Removed `_send_poll_completion()` function and its call from `poll_reddit()`
+- Rationale: operational telemetry (poll cycle counts, system health) doesn't belong in an analytics platform. Amplitude should track meaningful user/content events, not infrastructure heartbeats. Poll monitoring belongs in application logs (Modal captures stdout natively). A single focused event type (`reddit_post_ingested`) shows analytics discipline — a growth engineer knows not to pollute their analytics platform with operational noise.
+- Hidden `reddit_poll_completed` in Amplitude Data settings to declutter event dropdowns (existing events can't be deleted, but hidden events don't appear in chart builders).
+
+### Frontend: Analytics tab with embedded Amplitude charts
+- Added Posts / Analytics tab switcher to header
+- Analytics tab embeds 3 Amplitude charts via iframes: Post Volume by Day, Topic Breakdown, Questions by Topic
+- Chart height: 350px fixed — Amplitude embeds have ~80px internal headers, need minimum ~330px for chart content
+- r/healthcare title linked to subreddit (opens in new tab)
+
+## Code Quality Pass — 2026-02-13
+
+- **PEP 8 imports:** Moved `fastapi` imports from mid-file to top of `app.py` alongside other third-party imports
+- **PEP 8 logging:** Moved `logging.basicConfig()` after imports (was between import groups)
+- **PEP 8 blank lines:** Fixed triple blank line → double between top-level definitions
+- **Log levels:** Changed `log.warning` → `log.info` for success messages (non-error operational output)
+- **Resilience:** Added `retries=2` to `poll_reddit` — auto-retries on transient failures. Safe because `insert_id` deduplicates re-sent events.
+- **`requirements.txt`:** Added for local dev dependencies (`modal`, `fastapi[standard]`). Reviewer can `pip install -r requirements.txt` before `modal deploy`.
+- **README:** Added Python 3.12+ to prerequisites, `pip install -r requirements.txt` to setup steps

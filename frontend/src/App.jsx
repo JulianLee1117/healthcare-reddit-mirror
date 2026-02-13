@@ -82,10 +82,14 @@ export default function App() {
   const questionCount = posts.filter((p) => p.title.includes("?")).length;
 
   return (
-    <div className={`app ${tab === "analytics" ? "app--wide" : ""}`}>
+    <div className="app">
       <header className="header">
         <div className="header-top">
-          <h1>r/healthcare</h1>
+          <h1>
+            <a href="https://www.reddit.com/r/healthcare/" target="_blank" rel="noopener" className="header-link">
+              r/healthcare
+            </a>
+          </h1>
           {lastPolled && (
             <span className="last-polled">
               Polled {relativeTime(lastPolled)}
@@ -151,14 +155,12 @@ export default function App() {
         ) : (
           <div className="charts">
             {CHARTS.map((c) => (
-              <section key={c.src} className="chart-card">
-                <h2 className="chart-title">{c.title}</h2>
-                <iframe
-                  src={c.src}
-                  className="chart-frame"
-                  title={c.title}
-                />
-              </section>
+              <iframe
+                key={c.src}
+                src={c.src}
+                className="chart-frame"
+                title={c.title}
+              />
             ))}
           </div>
         )}
