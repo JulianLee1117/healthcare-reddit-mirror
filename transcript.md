@@ -4132,3 +4132,313 @@
    old events won't be updated (Amplitude dedupes by insert_id).
 
   PLAN.md and process.md both updated with Phase 8.
+
+  ❯ /compact 
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Referenced file process.md
+  ⎿  Read README.md (91 lines)
+  ⎿  Read app.py (295 lines)
+  ⎿  Referenced file PLAN.md
+  ⎿  Read frontend/src/App.css (240 lines)
+
+❯ this is how the frontend looks like (currently has mini stats of discussions vs questions). i want you to cleanly create 
+   a tab where you can view the embedded amplitude graphs\                                                                 
+  Post Volume by Day: <iframe class="frame"                                                                                
+    src="https://app.amplitude.com/analytics/share/embed/7e42ae82-466d-468a-a18e-d1beade7ab62"                             
+    frameBorder="0" width="100%" height="500">                                                                             
+  </iframe>\                                                                                                               
+  Topic Breakdown: <iframe class="frame"                                                                                   
+    src="https://app.amplitude.com/analytics/share/embed/33eff196-058e-46dc-9531-63f732c5e7f6"                             
+    frameBorder="0" width="100%" height="500">                                                                             
+  </iframe>\                                                                                                               
+  Questions by Topic: <iframe class="frame"                                                                                
+    src="https://app.amplitude.com/analytics/share/embed/7be2d4a4-1c19-462d-b1d4-00f9e0061a01"                             
+    frameBorder="0" width="100%" height="500">                                                                             
+  </iframe>                                                                                                                
+  ⎿  [Image #12]
+
+⏺ Let me read the current frontend code to understand the structure before adding the tabs.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ Now let me read the CSS file to know what I'm working with.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ I'll add a clean tab switcher and the analytics view with the 3 embedded charts. Let me update both files.
+
+⏺ Update(frontend/src/App.jsx)
+  ⎿  Added 80 lines, removed 31 lines
+      43    );
+      44  }
+      45  
+      46 +const CHARTS = [                                                                                              
+      47 +  {                                                                                                           
+      48 +    title: "Post Volume by Day",                                                                              
+      49 +    src: "https://app.amplitude.com/analytics/share/embed/7e42ae82-466d-468a-a18e-d1beade7ab62",              
+      50 +  },                                                                                                          
+      51 +  {                                                                                                           
+      52 +    title: "Topic Breakdown",                                                                                 
+      53 +    src: "https://app.amplitude.com/analytics/share/embed/33eff196-058e-46dc-9531-63f732c5e7f6",              
+      54 +  },                                                                                                          
+      55 +  {                                                                                                           
+      56 +    title: "Questions by Topic",                                                                              
+      57 +    src: "https://app.amplitude.com/analytics/share/embed/7be2d4a4-1c19-462d-b1d4-00f9e0061a01",              
+      58 +  },                                                                                                          
+      59 +];                                                                                                            
+      60 +                                                                                                              
+      61  export default function App() {
+      62    const [posts, setPosts] = useState([]);
+      63    const [lastPolled, setLastPolled] = useState(null);
+      64    const [loading, setLoading] = useState(true);
+      65 +  const [tab, setTab] = useState("posts");                                                                    
+      66  
+      67    useEffect(() => {
+      68      const load = () =>
+     ...
+      66    const questionCount = posts.filter((p) => p.title.includes("?")).length;
+      67  
+      68    return (
+      69 -    <div className="app">                                                                                     
+      69 +    <div className={`app ${tab === "analytics" ? "app--wide" : ""}`}>                                         
+      70        <header className="header">
+      71          <div className="header-top">
+      72            <h1>r/healthcare</h1>
+     ...
+       76              </span>
+       77            )}
+       78          </div>
+       79 -        {!loading && posts.length > 0 && (                                                                   
+       80 -          <div className="stats-bar">                                                                        
+       81 -            <div className="stat">                                                                           
+       82 -              <span className="stat-value">{posts.length}</span>                                             
+       83 -              <span className="stat-label">posts</span>                                                      
+       84 -            </div>                                                                                           
+       85 -            <div className="stat">                                                                           
+       86 -              <span className="stat-value">{questionCount}</span>                                            
+       87 -              <span className="stat-label">questions</span>                                                  
+       88 -            </div>                                                                                           
+       89 -            <div className="stat">                                                                           
+       90 -              <span className="stat-value">                                                                  
+       91 -                {posts.length - questionCount}                                                               
+       92 -              </span>                                                                                        
+       93 -              <span className="stat-label">links / discussion</span>                                         
+       94 -            </div>                                                                                           
+       95 -          </div>                                                                                             
+       96 -        )}                                                                                                   
+       79 +        <nav className="tabs">                                                                               
+       80 +          <button                                                                                            
+       81 +            className={`tab ${tab === "posts" ? "tab--active" : ""}`}                                        
+       82 +            onClick={() => setTab("posts")}                                                                  
+       83 +          >                                                                                                  
+       84 +            Posts                                                                                            
+       85 +          </button>                                                                                          
+       86 +          <button                                                                                            
+       87 +            className={`tab ${tab === "analytics" ? "tab--active" : ""}`}                                    
+       88 +            onClick={() => setTab("analytics")}                                                              
+       89 +          >                                                                                                  
+       90 +            Analytics                                                                                        
+       91 +          </button>                                                                                          
+       92 +        </nav>                                                                                               
+       93        </header>
+       94  
+       95        <main>
+       96 -        {loading ? (                                                                                         
+       97 -          <div className="status">                                                                           
+       98 -            <div className="spinner" />                                                                      
+       99 -            <p>Loading posts...</p>                                                                          
+      100 -          </div>                                                                                             
+      101 -        ) : posts.length === 0 ? (                                                                           
+      102 -          <div className="status">                                                                           
+      103 -            <p>The poller runs every 5 minutes — check back shortly.</p>                                     
+      104 -          </div>                                                                                             
+       96 +        {tab === "posts" ? (                                                                                 
+       97 +          <>                                                                                                 
+       98 +            {!loading && posts.length > 0 && (                                                               
+       99 +              <div className="stats-bar">                                                                    
+      100 +                <div className="stat">                                                                       
+      101 +                  <span className="stat-value">{posts.length}</span>                                         
+      102 +                  <span className="stat-label">posts</span>                                                  
+      103 +                </div>                                                                                       
+      104 +                <div className="stat">                                                                       
+      105 +                  <span className="stat-value">{questionCount}</span>                                        
+      106 +                  <span className="stat-label">questions</span>                                              
+      107 +                </div>                                                                                       
+      108 +                <div className="stat">                                                                       
+      109 +                  <span className="stat-value">                                                              
+      110 +                    {posts.length - questionCount}                                                           
+      111 +                  </span>                                                                                    
+      112 +                  <span className="stat-label">links / discussion</span>                                     
+      113 +                </div>                                                                                       
+      114 +              </div>                                                                                         
+      115 +            )}                                                                                               
+      116 +            {loading ? (                                                                                     
+      117 +              <div className="status">                                                                       
+      118 +                <div className="spinner" />                                                                  
+      119 +                <p>Loading posts...</p>                                                                      
+      120 +              </div>                                                                                         
+      121 +            ) : posts.length === 0 ? (                                                                       
+      122 +              <div className="status">                                                                       
+      123 +                <p>                                                                                          
+      124 +                  The poller runs every 5 minutes — check back shortly.                                      
+      125 +                </p>                                                                                         
+      126 +              </div>                                                                                         
+      127 +            ) : (                                                                                            
+      128 +              <div className="posts">                                                                        
+      129 +                {posts.map((p, i) => (                                                                       
+      130 +                  <Post key={p.id} post={p} rank={i + 1} />                                                  
+      131 +                ))}                                                                                          
+      132 +              </div>                                                                                         
+      133 +            )}                                                                                               
+      134 +          </>                                                                                                
+      135          ) : (
+      136 -          <div className="posts">                                                                            
+      137 -            {posts.map((p, i) => (                                                                           
+      138 -              <Post key={p.id} post={p} rank={i + 1} />                                                      
+      136 +          <div className="charts">                                                                           
+      137 +            {CHARTS.map((c) => (                                                                             
+      138 +              <section key={c.src} className="chart-card">                                                   
+      139 +                <h2 className="chart-title">{c.title}</h2>                                                   
+      140 +                <iframe                                                                                      
+      141 +                  src={c.src}                                                                                
+      142 +                  className="chart-frame"                                                                    
+      143 +                  title={c.title}                                                                            
+      144 +                />                                                                                           
+      145 +              </section>                                                                                     
+      146              ))}
+      147            </div>
+      148          )}
+
+⏺ Now add the CSS for tabs and chart embeds.
+
+⏺ Update(frontend/src/App.css)
+  ⎿  Added 33 lines
+      58    color: var(--secondary);
+      59  }
+      60  
+      61 +/* ---- Tabs ---- */                                                                                          
+      62 +                                                                                                              
+      63 +.tabs {                                                                                                       
+      64 +  display: flex;                                                                                              
+      65 +  gap: 0;                                                                                                     
+      66 +  margin-top: 1rem;                                                                                           
+      67 +  border-bottom: 2px solid var(--border);                                                                     
+      68 +}                                                                                                             
+      69 +                                                                                                              
+      70 +.tab {                                                                                                        
+      71 +  padding: 0.5rem 1rem;                                                                                       
+      72 +  font-size: 0.875rem;                                                                                        
+      73 +  font-weight: 500;                                                                                           
+      74 +  font-family: var(--font);                                                                                   
+      75 +  color: var(--secondary);                                                                                    
+      76 +  background: none;                                                                                           
+      77 +  border: none;                                                                                               
+      78 +  border-bottom: 2px solid transparent;                                                                       
+      79 +  margin-bottom: -2px;                                                                                        
+      80 +  cursor: pointer;                                                                                            
+      81 +  transition: color 0.15s, border-color 0.15s;                                                                
+      82 +}                                                                                                             
+      83 +                                                                                                              
+      84 +.tab:hover {                                                                                                  
+      85 +  color: var(--text);                                                                                         
+      86 +}                                                                                                             
+      87 +                                                                                                              
+      88 +.tab--active {                                                                                                
+      89 +  color: var(--accent);                                                                                       
+      90 +  border-bottom-color: var(--accent);                                                                         
+      91 +}                                                                                                             
+      92 +                                                                                                              
+      93  /* ---- Stats bar ---- */
+      94  
+      95  .stats-bar {
+      96 +  margin-top: 1rem;                                                                                           
+      97    display: flex;
+      98    gap: 1.5rem;
+      99    margin-top: 1rem;
+
+⏺ Update(frontend/src/App.css)
+  ⎿  Error editing file
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ I see there are two margin-top lines. Let me clean that up and add the charts CSS at the end.
+
+⏺ Update(frontend/src/App.css)
+  ⎿  Removed 1 line
+      93  /* ---- Stats bar ---- */
+      94  
+      95  .stats-bar {
+      96 -  margin-top: 1rem;                                                                                           
+      96    display: flex;
+      97    gap: 1.5rem;
+      98    margin-top: 1rem;
+
+⏺ Now add the charts CSS and the wider layout for analytics. I'll append before the responsive section.
+
+⏺ Update(frontend/src/App.css)
+  ⎿  Added 35 lines
+      256    }
+      257  }
+      258  
+      259 +/* ---- Charts (Analytics tab) ---- */                                                                       
+      260 +                                                                                                             
+      261 +.app--wide {                                                                                                 
+      262 +  max-width: 1100px;                                                                                         
+      263 +}                                                                                                            
+      264 +                                                                                                             
+      265 +.charts {                                                                                                    
+      266 +  display: flex;                                                                                             
+      267 +  flex-direction: column;                                                                                    
+      268 +  gap: 1.5rem;                                                                                               
+      269 +  margin-top: 1rem;                                                                                          
+      270 +}                                                                                                            
+      271 +                                                                                                             
+      272 +.chart-card {                                                                                                
+      273 +  border: 1px solid var(--border);                                                                           
+      274 +  border-radius: 8px;                                                                                        
+      275 +  overflow: hidden;                                                                                          
+      276 +  background: var(--surface);                                                                                
+      277 +}                                                                                                            
+      278 +                                                                                                             
+      279 +.chart-title {                                                                                               
+      280 +  font-size: 0.875rem;                                                                                       
+      281 +  font-weight: 600;                                                                                          
+      282 +  padding: 0.75rem 1rem;                                                                                     
+      283 +  border-bottom: 1px solid var(--border);                                                                    
+      284 +  background: var(--bg);                                                                                     
+      285 +}                                                                                                            
+      286 +                                                                                                             
+      287 +.chart-frame {                                                                                               
+      288 +  display: block;                                                                                            
+      289 +  width: 100%;                                                                                               
+      290 +  height: 400px;                                                                                             
+      291 +  border: none;                                                                                              
+      292 +}                                                                                                            
+      293 +                                                                                                             
+      294  /* ---- Responsive ---- */
+      295  
+      296  @media (max-width: 540px) {
+
+⏺ Now let me build and deploy.
+
+⏺ Bash(cd /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror/frontend && npm run build 2>&1)
+  ⎿  > build
+     > vite build
+     … +9 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror && modal deploy app.py 2>&1)
+  ⎿  ✓ Created objects.
+     ├── 🔨 Created mount
+     │   /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror/app.py
+     … +10 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+⏺ Deployed. The app now has a Posts / Analytics tab switcher in the header:
+                                                                                                                         
+  - Posts tab — same as before with the stats bar and post list
+  - Analytics tab — shows your 3 Amplitude charts stacked vertically (Post Volume by Day, Topic Breakdown, Questions by Topic),
+   each in a card with a title label. The layout widens to 1100px to give the charts room.                                     
+  
+  Check it out at https://julianlee1117--healthcare-reddit-mirror-serve.modal.run                                              
+                                                                               
+✻ Sautéed for 1m 18s  

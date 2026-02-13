@@ -70,9 +70,20 @@ modal run app.py::poll_reddit     # one-shot poll (useful for testing)
 
 | Event | Triggered by | Key properties |
 |---|---|---|
-| `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `post_age_minutes`, `post_position`, `content_length`, `is_question` |
+| `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `topic`, `is_question`, `has_content`, `post_age_minutes`, `post_position`, `content_length` |
+| `reddit_poll_completed` | Poller (every cycle) | `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`, `question_count`, `question_ratio` |
 
-Each event includes an `insert_id` of `reddit-{post_id}` for deduplication.
+Each `reddit_post_ingested` event uses the post author as `user_id` (format: `reddit:AuthorName`) to enable user-level analytics, and includes an `insert_id` of `reddit-{post_id}` for deduplication. Posts are auto-classified into one of 6 topics via keyword matching: `insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`, or `other`.
+
+### Amplitude dashboard
+
+Three charts built on the enriched event data:
+
+| Chart | Type | What it shows | Growth insight |
+|---|---|---|---|
+| **Topic Breakdown** | Bar (grouped by `topic`) | Distribution of post topics across r/healthcare | Content opportunity identification — which categories dominate the community discourse |
+| **Questions by Topic** | Bar (filtered `is_question=true`, grouped by `topic`) | Where people are actively asking for help | Pain point discovery — questions represent unmet needs a health product could address |
+| **Post Volume by Day** | Line/bar (daily event count) | Community posting activity over time | Channel health monitoring — is the subreddit active enough to be a growth signal? |
 
 ## Agent transcript
 

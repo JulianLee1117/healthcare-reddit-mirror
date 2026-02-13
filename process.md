@@ -317,5 +317,24 @@ Old events remain with `user_id: "reddit-mirror"` and basic properties. No backf
 - `app.py`: 210 → 293 lines (+83 lines: topic keywords dict, categorize function, poll completion function, enriched event properties)
 - No frontend changes — enrichments are Amplitude-only
 
+### Bug fix: Amplitude user_id minimum length
+- `user_id: p["author"]` failed with 400 for short usernames (e.g., "vox" = 3 chars). Amplitude requires minimum 5 characters.
+- Fix: `user_id: f"reddit:{p['author']}"` — prefix guarantees 7+ chars, clearly labels Reddit users.
+
+### Fresh Amplitude project
+- Created new Amplitude project ("r/healthcare monitor") to start clean — old project had events with `user_id: "reddit-mirror"` and no topic/has_content properties.
+- Updated Modal secret with new API key, cleared `seen_ids`, re-polled → 26 enriched events ingested successfully.
+
+### Amplitude dashboard — 3 charts
+Built on the enriched event data in Amplitude:
+
+1. **Topic Breakdown** (bar, grouped by `topic`) — Shows distribution of post topics across r/healthcare. Growth insight: identifies which content categories dominate community discourse, informing product positioning and content strategy.
+2. **Questions by Topic** (bar, filtered `is_question=true`, grouped by `topic`) — Shows where people actively ask for help. Growth insight: questions = unmet needs. Categories with the most questions are the strongest product wedges.
+3. **Post Volume by Day** (line/bar, daily event count) — Shows community posting activity over time. Growth insight: channel health monitoring — validates r/healthcare as an active signal source worth monitoring.
+
+Dropped two originally planned charts (New vs Returning Authors, Content Type by Topic) — insufficient data for meaningful visualization with ~26 events from a single ingestion cycle.
+
 ### Verification
-- `modal run app.py::poll_reddit` — pending deployment
+- `modal run app.py::poll_reddit` → 26 events sent, status 200
+- All 3 charts populated in Amplitude with correct topic classifications
+- `reddit_poll_completed` event firing each cycle with aggregate stats
