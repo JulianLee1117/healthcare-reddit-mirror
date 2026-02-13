@@ -174,3 +174,48 @@ All required fields present. `score` and `num_comments` are NOT in RSS but are N
 - `/` → 25 posts rendered with titles, links, authors, content snippets, relative timestamps
 - Last updated footer present
 - No deviations from PLAN.md (other than simplifying the verification steps as noted above)
+
+## Post-Deploy Audit — 2026-02-12 16:51 PST
+
+Full code review of `app.py` against assessment criteria (correct, race-free, maintainable, concise, secure). No issues found, no changes needed.
+
+### Correctness
+- RSS parsing: Atom namespace, `findtext`/`find` with safe defaults, `removeprefix` for `t3_` and `/u/`
+- Timestamp: `datetime.fromisoformat` handles Reddit's timezone-aware ISO 8601 on Python 3.12
+- Dedup: `current_ids - seen_ids` with 5000-cap; `insert_id` as crash-recovery safety net
+- Write ordering: Amplitude → `front_page` → `seen_ids` — if crash after Amplitude but before `seen_ids`, next run re-sends with same `insert_id` (deduped)
+
+### Race-freedom
+- **Poller vs web:** Dict get/put atomic per key — reads old or new, never partial
+- **Overlapping pollers:** Standard serverless cron skips overlaps; even if overlap, `insert_id` dedup prevents Amplitude duplicates; `seen_ids` union means both writes include `current_ids`
+- **Crash between Dict writes:** `front_page` written first (UI stays fresh); `insert_id` covers re-sends
+- **Concurrent web requests:** Read-only Dict access; `BackgroundTask` is fire-and-forget, no shared state
+
+### Security
+- `html.escape()` on all 4 dynamic values (title, link, author, content) before rendering
+- Links from Reddit's server-generated `<link href>` (not user-controlled); `html.escape` prevents attribute breakout
+- Content snippet: RSS HTML stripped via `re.sub`, then `html.escape()`d — double protection
+- `target="_blank" rel="noopener"` on external links
+- API key in Modal Secret via `os.environ`, never hardcoded or logged
+
+### Maintainability & Conciseness
+- 285 lines, single file, well-organized sections (constants → helpers → poller → web UI → serve)
+- No unnecessary abstractions; f-string HTML avoids template engine dependency for ~30 lines of markup
+- Local imports inside functions (standard Modal serialization pattern)
+
+**Result:** No PLAN.md updates needed. Code matches plan.
+
+## Post-Deploy Fixes — 2026-02-12
+
+### Bug: RSS content display issues
+1. **HTML entities not decoded** — `&#32;`, `&#39;` etc. showing raw in snippets. Fixed by adding `html.unescape()` (via `from html import unescape`) before tag stripping in `_fetch_reddit()`.
+2. **Reddit boilerplate in link posts** — "submitted by /u/... [link] [comments]" showing as snippet text. Initial fix blanked all content containing `[link]` and `[comments]`, but this was too aggressive — self-posts also contain that boilerplate at the end. Final fix: strip boilerplate patterns (`submitted by /u/...`, `[link]`, `[comments]`) via targeted `re.sub()` instead of blanking. Self-post descriptions preserved; link-only posts get empty snippet (clean, no placeholder needed).
+3. **Author profile links** — Author usernames now link to `https://www.reddit.com/user/{author}` with `target="_blank" rel="noopener"`.
+
+### Verification
+- Redeployed + re-polled. Self-posts show clean snippets, link posts show no snippet, author names are clickable links to Reddit profiles. No HTML entity artifacts.
+
+### Removal: `mirror_page_viewed` event
+- Removed `_track_page_view()` function, `BackgroundTasks` usage from `home()`, and `secrets` from `serve` function decorator.
+- Rationale: static `device_id` hit counter with no per-visitor identification provided no actionable data. Unnecessary Amplitude call on every page load.
+- Updated README.md (removed from architecture diagram and event table), PLAN.md (marked as removed in Phase 4b).

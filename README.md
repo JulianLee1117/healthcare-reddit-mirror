@@ -10,16 +10,13 @@ Single-file ASGI app (`app.py`) deployed on Modal with two functions:
 
 1. **Poller** (`poll_reddit`) — Cron-scheduled every 5 min. Fetches r/healthcare via RSS, deduplicates by post ID, sends `reddit_post_ingested` events to Amplitude for new posts, and caches the current front page in Modal Dict.
 
-2. **Web server** (`serve`) — FastAPI app rendering server-side HTML from the Dict cache. Sub-10ms response times (no Reddit call per page load). Tracks page views to Amplitude via background tasks.
+2. **Web server** (`serve`) — FastAPI app rendering server-side HTML from the Dict cache. No Reddit call per page load.
 
 ```
 Reddit RSS ──> poll_reddit ──> Amplitude (reddit_post_ingested)
                    │
                    ▼
               Modal Dict ──> serve (GET /) ──> HTML
-                                │
-                                ▼
-                          Amplitude (mirror_page_viewed)
 ```
 
 ### Why RSS over JSON
@@ -63,7 +60,6 @@ modal run app.py::poll_reddit  # one-shot poll (useful for testing)
 | Event | Triggered by | Key properties |
 |---|---|---|
 | `reddit_post_ingested` | Poller (new posts only) | `title`, `link`, `author`, `post_age_minutes`, `post_position`, `is_question`, `content_length` |
-| `mirror_page_viewed` | Web UI page load | `post_count` |
 
 ## Agent transcript
 

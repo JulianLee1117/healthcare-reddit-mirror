@@ -20,6 +20,7 @@ def _fetch_reddit() -> list[dict] | None:
     import re
     import xml.etree.ElementTree as ET
     from datetime import datetime
+    from html import unescape
 
     import httpx
 
@@ -44,7 +45,13 @@ def _fetch_reddit() -> list[dict] | None:
         published = entry.findtext("atom:published", "", _ATOM_NS)
         content_el = entry.find("atom:content", _ATOM_NS)
         content_html = content_el.text if content_el is not None and content_el.text else ""
-        content_text = re.sub(r"<[^>]+>", "", content_html).strip()[:200]
+        content_text = re.sub(r"<[^>]+>", "", unescape(content_html)).strip()
+        content_text = re.sub(
+            r"\s*submitted by\s+/u/\S+\s*", " ", content_text
+        ).strip()
+        content_text = re.sub(r"\s*\[link\]\s*", " ", content_text).strip()
+        content_text = re.sub(r"\s*\[comments\]\s*", " ", content_text).strip()
+        content_text = content_text[:200]
         posts.append(
             {
                 "id": post_id,
@@ -180,9 +187,11 @@ def _render_html(posts: list[dict], last_polled: float | None = None) -> str:
             snippet = (
                 f'<br><span class="snippet">{content}</span>' if content else ""
             )
+            author_url = f"https://www.reddit.com/user/{author}"
             rows += (
                 f'<tr><td><a href="{link}" target="_blank" rel="noopener">'
-                f"{title}</a>{snippet}</td><td>{author}</td>"
+                f"{title}</a>{snippet}</td>"
+                f'<td><a href="{author_url}" target="_blank" rel="noopener">{author}</a></td>'
                 f'<td class="age">{age}</td></tr>\n'
             )
 
@@ -229,37 +238,8 @@ def _render_html(posts: list[dict], last_polled: float | None = None) -> str:
 </html>"""
 
 
-def _track_page_view(post_count: int) -> None:
-    import os
-    import time
-
-    import httpx
-
-    api_key = os.environ.get("AMPLITUDE_API_KEY")
-    if not api_key:
-        return
-    try:
-        httpx.post(
-            AMPLITUDE_URL,
-            json={
-                "api_key": api_key,
-                "events": [
-                    {
-                        "device_id": "reddit-mirror-web",
-                        "event_type": "mirror_page_viewed",
-                        "time": int(time.time() * 1000),
-                        "event_properties": {"post_count": post_count},
-                    }
-                ],
-            },
-            timeout=5,
-        )
-    except httpx.HTTPError:
-        pass
-
-
 @web_app.get("/")
-def home(background_tasks: fastapi.BackgroundTasks):
+def home():
     try:
         posts = posts_dict["front_page"]
     except KeyError:
@@ -268,7 +248,6 @@ def home(background_tasks: fastapi.BackgroundTasks):
         last_polled = posts_dict["last_polled"]
     except KeyError:
         last_polled = None
-    background_tasks.add_task(_track_page_view, len(posts))
     return fastapi.responses.HTMLResponse(content=_render_html(posts, last_polled))
 
 
@@ -277,7 +256,7 @@ def healthz():
     return {"status": "ok"}
 
 
-@app.function(image=image, secrets=[modal.Secret.from_name("amplitude-secret")])
+@app.function(image=image)
 @modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def serve():
