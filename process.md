@@ -219,3 +219,27 @@ Full code review of `app.py` against assessment criteria (correct, race-free, ma
 - Removed `_track_page_view()` function, `BackgroundTasks` usage from `home()`, and `secrets` from `serve` function decorator.
 - Rationale: static `device_id` hit counter with no per-visitor identification provided no actionable data. Unnecessary Amplitude call on every page load.
 - Updated README.md (removed from architecture diagram and event table), PLAN.md (marked as removed in Phase 4b).
+
+## Phase 6a: Dual-Feed Polling (Hot + New) — 2026-02-12
+
+### Plan Review
+- Phase 6a plan verified optimal. One gap identified: no explicit handling for partial failure (one feed fails, other succeeds). Added to implementation.
+
+### Implementation
+- Added `RSS_NEW_URL = "https://www.reddit.com/r/healthcare/new.rss"` constant
+- Parameterized `_fetch_reddit(url: str = RSS_URL)` — accepts URL as argument
+- Rewrote `poll_reddit()` for dual-feed:
+  - Fetches both `/hot` and `/new` feeds
+  - Early return only if **both** fail (partial failure is handled gracefully)
+  - Merges into `all_posts` dict keyed by ID — new feed inserted first, hot overwrites (hot takes precedence for duplicates)
+  - Tags each post with `feed_source`: `"both"`, `"hot"`, or `"new"` based on which feed(s) it appeared in
+  - Dedup against `seen_ids` uses merged `current_ids` from both feeds
+  - `front_page` write gated on `hot_posts is not None` — stale UI is better than empty UI if hot feed fails
+  - `seen_ids` always updated with all posts from whichever feed(s) succeeded
+- Added `feed_source` to Amplitude event properties in `_send_to_amplitude()` (default `"hot"` for backwards compat)
+
+### Verification
+- `modal run app.py::poll_reddit` → "Polled 25 hot + 25 new, 1 genuinely new" — new feed caught a post not in hot feed
+- Amplitude: sent 1 event, status 200
+- Dedup working correctly across both feeds (only genuinely new posts sent to Amplitude)
+- No deviations from PLAN.md (other than the partial failure handling addition noted above)

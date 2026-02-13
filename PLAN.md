@@ -124,14 +124,14 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 1. `GET /api/posts` — Returns front-page posts from Dict cache:
    ```json
    {
-     "posts": [{"id", "title", "link", "author", "created_utc", "content", "topic"}],
+     "posts": [{"id", "title", "link", "author", "created_utc", "content"}],
      "last_polled": 1707753600.0
    }
    ```
-2. `GET /api/insights` — Returns aggregated analytics from Dict:
+2. `GET /api/insights` — Returns aggregated analytics from Dict (conditional on Phase 6e):
    ```json
    {
-     "topic_counts": {"insurance": 12, "billing": 8, ...},
+     "topic_counts": {"...": 12, ...},
      "author_counts": {"user1": 5, ...},
      "question_ratio": 0.32,
      "total_posts_seen": 150
@@ -149,13 +149,14 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ## Phase 4b: Amplitude Enrichments ✅
 
-**Enrichments applied to `reddit_post_ingested` events (kept from original Phase 4b):**
+**Enrichments applied to `reddit_post_ingested` events:**
 
 1. **`post_age_minutes`** — `round((now - created_utc) / 60)` — how stale are posts at ingestion?
 2. **`post_position`** — 1-indexed rank in the RSS feed
 3. **`content_length`** — length of content snippet
 4. **`is_question`** — `title.rstrip().endswith("?")`
-5. **`topic`** — auto-classified healthcare topic (see Phase 6b)
+5. **`feed_source`** — `"hot"`, `"new"`, or `"both"` (added in Phase 6a)
+6. **`topic`** — auto-classified healthcare topic (added in Phase 6e, conditional on data analysis in 6d)
 
 **Poller also stores:**
 - `last_polled`: `time.time()` — exposed in `/api/posts` response
@@ -185,11 +186,13 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ## Phase 6: Comprehensive Ingestion & Growth Enhancements
 
-**Goal:** Ensure every new r/healthcare post is captured (not just front-page posts), and add growth-engineering features that demonstrate analytical depth.
+**Goal:** Ensure every new r/healthcare post is captured (not just front-page posts), backfill historical data, and add data-driven growth features.
+
+**Execution order:** 6a (dual-feed) → 6b (Amplitude reset) → 6c (backfill) → 6d (analyze data & design classification) → 6e (implement classification + insights) → 6f (Amplitude dashboard). This order is intentional: we collect real data before making classification decisions.
 
 ### 6a: Dual-Feed Polling (Hot + New)
 
-**Problem:** The assessment says "for each new post (by `id`)" but we only poll `/hot`. Reddit's hot algorithm can bury posts with zero engagement — they never appear on the front page. Verified: `/new.rss` returns posts that `/hot.rss` doesn't.
+**Problem:** The assessment says "for each new post (by `id`)" and Naomi confirmed "syndicate new posts." We only poll `/hot`. Reddit's hot algorithm can bury posts with zero engagement — they never appear on the front page. Verified: `/new.rss` returns posts that `/hot.rss` doesn't.
 
 **Solution:** Poll both feeds in `poll_reddit()`:
 - `/r/healthcare/new.rss` → comprehensive ingestion (Amplitude events for **every** post)
@@ -200,51 +203,28 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 2. Parameterize `_fetch_reddit(url: str)` — accept URL as argument
 3. In `poll_reddit()`:
    - Fetch both feeds: `hot_posts = _fetch_reddit(RSS_URL)`, `new_posts_raw = _fetch_reddit(RSS_NEW_URL)`
-   - Merge for dedup: build `all_posts` dict keyed by ID from both feeds
+   - Merge for dedup: build `all_posts` dict keyed by ID from both feeds (hot takes precedence for duplicates — preserves hot-sort position)
    - Dedup against `seen_ids` using merged set
    - Write `front_page = hot_posts` (UI shows hot sort, per assessment requirement)
    - Send Amplitude events for all new-to-us posts from **either** feed
+   - Add `feed_source` to Amplitude event properties: `"hot"`, `"new"`, or `"both"` — enables analysis of which feed catches posts first
 4. Same `seen_ids` set covers both feeds — no double-sending
 
 **Verify:** `modal run app.py::poll_reddit` — check that posts from /new that aren't in /hot still get Amplitude events. UI should still show hot-sorted posts.
 
-### 6b: Topic Auto-Classification
+### 6b: Amplitude Clean Slate
 
-**Goal:** Classify each post into a healthcare topic category. Adds `topic` to Amplitude event properties, enabling "what topics dominate r/healthcare?" analysis.
+**Problem:** Amplitude events are immutable — once sent, you cannot update their properties. We already have ~25 events from Phase 2-4 testing that lack enrichments (topic, feed_source, etc.). Since `insert_id` dedup prevents re-sending, these old events would be permanently incomplete.
 
-**Implementation:**
-1. Define `TOPIC_KEYWORDS` dict mapping topics to keyword sets:
-   - `"insurance"`: insurance, coverage, premium, deductible, copay, ACA, medicaid, medicare
-   - `"billing"`: bill, charge, cost, price, ER, emergency room, $, payment
-   - `"mental_health"`: mental, therapy, therapist, anxiety, depression, counseling, psychiatr
-   - `"career"`: career, job, nurse, doctor, degree, school, certification, salary
-   - `"policy"`: law, legislation, policy, regulation, government, FDA, RFK
-   - `"patient_experience"`: hospital, doctor visit, diagnosis, treatment, symptom
-   - `"other"`: fallback
-2. Implement `_classify_topic(title: str, content: str) -> str`:
-   - Lowercase title + content, check each topic's keywords, return first match (or `"other"`)
-   - Simple keyword matching — no ML dependencies, keeps single-file constraint
-3. Add `"topic": _classify_topic(p["title"], p.get("content", ""))` to Amplitude event properties
-4. Add `topic` to post dicts stored in Dict (available for `/insights` page)
+**Solution:** Create a fresh Amplitude project within the same org (or delete events in the current project). Update the Modal secret with the new API key. This way all events — backfill and ongoing — have a consistent, complete schema.
 
-### 6c: Insights Aggregation (Backend)
+**Why this is safe:** It's a brand new assessment org with only ~25 test events. Zero cost to reset.
 
-**Goal:** Store rolling aggregates in Dict during polling. Data is exposed via `GET /api/insights` (Phase 4) and rendered by the React frontend (Phase 7).
+### 6c: Historical Backfill
 
-**Implementation in `poll_reddit()`:**
-1. After processing new posts, update rolling aggregates in Dict:
-   - `topic_counts`: `dict[str, int]` — increment per topic for each new post
-   - `author_counts`: `dict[str, int]` — posts per author
-   - `total_posts_seen`: running total of unique posts ingested
-   - `question_count`: running total of question posts
-2. These are read by `GET /api/insights` and returned as JSON
-3. React frontend renders charts from this data (Phase 7)
+**Goal:** Prepopulate Amplitude with historical r/healthcare posts. Solves the cold-start problem — a growth tool that launches with an empty dashboard is useless.
 
-### 6d: Historical Backfill
-
-**Goal:** Prepopulate the database with historical r/healthcare posts so insights have real data from day one. Solves the cold-start problem — a growth tool that launches empty is useless.
-
-**How RSS pagination works:** Reddit RSS supports `?after=t3_XXXXX` to paginate backward through posts. Each page returns up to 25 entries (default). We paginate through `/new.rss` to collect historical posts.
+**How RSS pagination works:** Reddit RSS supports `?after=t3_XXXXX` to paginate backward through posts. With `?limit=100`, each page returns up to 100 entries. Reddit caps total pagination at ~1000 posts. For r/healthcare (~5-10 posts/day), this covers roughly 3-6 months of history.
 
 **Implementation:**
 1. Add `backfill(pages: int = 10)` function with `@app.function` decorator (no cron — manual one-shot):
@@ -252,34 +232,77 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
    @app.function(image=image, secrets=[modal.Secret.from_name("amplitude-secret")])
    def backfill(pages: int = 10):
    ```
-2. Paginate through `/r/healthcare/new.rss?after=t3_LASTID`:
-   - Fetch page → extract posts → get last post ID → fetch next page
-   - `time.sleep(2)` between requests (be nice to Reddit)
+2. Paginate through `/r/healthcare/new.rss?limit=100&after=t3_LASTID`:
+   - Fetch page → extract posts → get last post ID (`t3_` prefixed) → fetch next page
+   - `time.sleep(2)` between requests (Reddit rate limit: ~10 req/min for unauthenticated RSS)
    - Stop when empty page or `pages` limit reached
-3. Process all collected posts through the **same pipeline** as `poll_reddit()`:
+   - Use `?limit=100` to maximize posts per page (10 pages × 100 = up to 1000 posts)
+3. Process all collected posts:
    - Dedup against `seen_ids` (skip already-seen posts)
-   - Classify topics via `_classify_topic()`
    - Send to Amplitude (with correct `created_utc` timestamps; `insert_id` makes reruns safe)
-   - Update aggregates (topic_counts, author_counts, question_count, total_posts_seen)
    - Update `seen_ids`
-4. Does NOT overwrite `front_page` — that stays as the current hot-sort posts from regular polling
+4. Does NOT overwrite `front_page` — that stays as current hot-sort posts from regular polling
+5. Does NOT classify topics or update aggregates yet — that comes after 6d
+
+**Note on `post_position`:** For backfilled posts, `post_position` reflects position within the /new pagination, not hot ranking. This is fine — it's still useful as chronological order.
 
 **Safety:**
 - `insert_id = f"reddit-{post_id}"` — Amplitude dedup means running backfill twice is harmless
-- `seen_ids` dedup means aggregates won't double-count
+- `seen_ids` dedup prevents double-processing
 - No cron — only runs when manually invoked via `modal run app.py::backfill`
 
-**Verify:** `modal run app.py::backfill` → check Amplitude for historical events with old timestamps. Check `/api/insights` for populated aggregates.
+**Verify:** `modal run app.py::backfill` → check Amplitude for historical events with old timestamps. Check that `seen_ids` grew.
 
-### 6e: Amplitude Dashboard Setup
+### 6d: Analyze Data & Design Classification (Manual Step)
+
+**Goal:** Examine the backfilled data to design topic categories that actually fit r/healthcare's content. This is intentionally a manual analysis step — not code.
+
+**Why defer:** We analyzed 27 current posts against the originally proposed keyword categories. Results:
+- **48-52% of posts fell into "other"** — the taxonomy doesn't describe what r/healthcare actually contains
+- Missing topics: health IT/EHR, pharmacy/medication access, medical research, patient rights
+- Keyword overlap: "hospital", "doctor", "insurance" trigger wrong categories depending on context
+- The subreddit is less consumer-oriented than assumed — significant health IT professional, policy analyst, and healthcare worker presence
+
+**Process:**
+1. After backfill, export or browse Amplitude events to see ~1000 post titles
+2. Manually identify natural topic clusters in the actual data
+3. Design categories with minimal "other" bucket (<20% target)
+4. Choose keywords per category that minimize cross-contamination
+5. Document the final taxonomy before implementing
+
+**Decision point:** After seeing the data, we may decide:
+- Topic classification adds real value → implement in 6e
+- Topics are too noisy/overlapping → skip classification, keep insights simpler (just volume, question ratio, top authors)
+- A different enrichment is more interesting (e.g., sentiment, post type: question vs news vs discussion)
+
+### 6e: Classification & Insights (Conditional on 6d)
+
+**Goal:** Implement topic classification and insights aggregation based on 6d findings.
+
+**Implementation (specifics TBD after 6d):**
+1. `_classify_topic(title: str, content: str) -> str` — keyword-based, categories from 6d analysis
+2. Add `topic` to Amplitude event properties and post dicts
+3. Update rolling aggregates in Dict during `poll_reddit()`:
+   - `topic_counts`: `dict[str, int]`
+   - `author_counts`: `dict[str, int]`
+   - `total_posts_seen`: running total
+   - `question_count`: posts ending with `?`
+4. Expose via `GET /api/insights`
+5. Re-run backfill to retroactively classify historical posts (requires Amplitude reset or new `insert_id` scheme)
+
+**If classification is skipped:** Insights still include author_counts, question_count, total_posts_seen, post volume over time. These don't require topic classification and are still valuable.
+
+### 6f: Amplitude Dashboard Setup
 
 **Goal:** Configure 3-4 charts in Amplitude that tell a growth story about r/healthcare. Screenshot in README.
 
-**Charts:**
+**Charts (core — always available):**
 1. **Post volume over time** — `reddit_post_ingested` event count, daily granularity
-2. **Topic distribution** — breakdown by `topic` event property
-3. **Question ratio trend** — `is_question = true` as % of total, over time
-4. **Ingestion freshness** — average `post_age_minutes` over time (are we catching posts quickly?)
+2. **Question ratio trend** — `is_question = true` as % of total, over time
+3. **Ingestion freshness** — average `post_age_minutes` over time (are we catching posts quickly?)
+
+**Charts (conditional on 6e):**
+4. **Topic distribution** — breakdown by `topic` event property (only if classification is implemented)
 
 **Deliverable:** Screenshot of dashboard added to README under "## Amplitude Dashboard" section.
 
@@ -341,12 +364,19 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 **Dict: `healthcare-reddit-posts`**
 
+**Core keys (always present):**
+
 | Key | Type | Written by | Read by | Description |
 |---|---|---|---|---|
-| `front_page` | `list[dict]` | `poll_reddit` | `GET /api/posts` | Current hot-sorted posts (~25). Each dict: `{id, title, link, author, created_utc, content, topic}` |
+| `front_page` | `list[dict]` | `poll_reddit` | `GET /api/posts` | Current hot-sorted posts (~25). Each dict: `{id, title, link, author, created_utc, content}` |
 | `seen_ids` | `set[str]` | `poll_reddit`, `backfill` | `poll_reddit`, `backfill` | All post IDs ever seen. Capped at 5000 (resets to current if exceeded). Primary dedup mechanism. |
 | `last_polled` | `float` | `poll_reddit` | `GET /api/posts` | Unix timestamp of last successful poll. Displayed as "last updated" in UI. |
-| `topic_counts` | `dict[str, int]` | `poll_reddit`, `backfill` | `GET /api/insights` | Running totals: `{"insurance": 42, "billing": 18, ...}` |
+
+**Insights keys (added in Phase 6e, conditional on 6d analysis):**
+
+| Key | Type | Written by | Read by | Description |
+|---|---|---|---|---|
+| `topic_counts` | `dict[str, int]` | `poll_reddit`, `backfill` | `GET /api/insights` | Running totals per topic category (categories TBD from data analysis) |
 | `author_counts` | `dict[str, int]` | `poll_reddit`, `backfill` | `GET /api/insights` | Running totals: `{"username": 5, ...}` |
 | `total_posts_seen` | `int` | `poll_reddit`, `backfill` | `GET /api/insights` | Total unique posts ever ingested. |
 | `question_count` | `int` | `poll_reddit`, `backfill` | `GET /api/insights` | Posts where title ends with `?`. |
@@ -368,8 +398,8 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 - **Poller writes while web reads:** Dict get/put are atomic per key — UI reads old or new value, never partial. Safe.
 - **Overlapping poller runs:** Likely skipped by Modal (standard serverless pattern, not explicitly documented). Even if overlap occurs, worst case is a redundant Amplitude POST — `insert_id` deduplicates. Safe.
 - **Poller crash between writes:** `front_page` written first (UI stays fresh). If `seen_ids` fails to persist, next run re-sends to Amplitude — `insert_id` deduplicates. Safe.
-- **Backfill concurrent with poller:** Both read-modify-write `seen_ids` and aggregates. Worst case: a few posts double-counted in aggregates (non-critical for analytics), and Amplitude deduplicates via `insert_id`. Mitigated by running backfill once before enabling cron. Safe.
-- **Aggregate counters (read-modify-write):** Not truly atomic across keys, but only the poller writes aggregates (single writer). Backfill is a one-shot manual run. No concurrent writers in steady state. Safe.
+- **Backfill concurrent with poller:** Both read-modify-write `seen_ids`. Worst case: a post is double-counted if both see it as "new" simultaneously. Amplitude deduplicates via `insert_id`. Mitigated by running backfill before enabling cron (deploy with cron disabled, run backfill, then redeploy with cron). Safe.
+- **Aggregate counters (read-modify-write):** Not truly atomic across keys, but only one writer at a time in practice (poller in steady state, backfill as one-shot). Safe.
 
 ## Files to Create/Modify
 

@@ -9,6 +9,7 @@ image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[stan
 posts_dict = modal.Dict.from_name("healthcare-reddit-posts", create_if_missing=True)
 
 RSS_URL = "https://www.reddit.com/r/healthcare.rss"
+RSS_NEW_URL = "https://www.reddit.com/r/healthcare/new.rss"
 USER_AGENT = "modal:healthcare-reddit-mirror:v1.0 (by /u/health-mirror-bot)"
 AMPLITUDE_URL = "https://api2.amplitude.com/2/httpapi"
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
@@ -16,7 +17,7 @@ _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 log = logging.getLogger(__name__)
 
 
-def _fetch_reddit() -> list[dict] | None:
+def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
     import re
     import xml.etree.ElementTree as ET
     from datetime import datetime
@@ -26,7 +27,7 @@ def _fetch_reddit() -> list[dict] | None:
 
     try:
         resp = httpx.get(
-            RSS_URL, headers={"User-Agent": USER_AGENT}, timeout=15
+            url, headers={"User-Agent": USER_AGENT}, timeout=15
         )
         resp.raise_for_status()
         root = ET.fromstring(resp.text)
@@ -90,6 +91,7 @@ def _send_to_amplitude(posts: list[dict]) -> None:
                 "post_position": i + 1,
                 "content_length": len(p.get("content", "")),
                 "is_question": p["title"].rstrip().endswith("?"),
+                "feed_source": p.get("feed_source", "hot"),
             },
         }
         for i, p in enumerate(posts)
@@ -114,25 +116,48 @@ def _send_to_amplitude(posts: list[dict]) -> None:
 def poll_reddit():
     import time
 
-    posts = _fetch_reddit()
-    if posts is None:
+    hot_posts = _fetch_reddit(RSS_URL)
+    new_posts_raw = _fetch_reddit(RSS_NEW_URL)
+
+    if hot_posts is None and new_posts_raw is None:
         return
 
-    current_ids = {p["id"] for p in posts}
+    # Merge both feeds — hot takes precedence for duplicates
+    all_posts: dict[str, dict] = {}
+    hot_ids: set[str] = set()
+    new_ids_raw: set[str] = set()
+
+    if new_posts_raw:
+        for p in new_posts_raw:
+            all_posts[p["id"]] = p
+            new_ids_raw.add(p["id"])
+    if hot_posts:
+        for p in hot_posts:
+            all_posts[p["id"]] = p
+            hot_ids.add(p["id"])
+
+    # Tag feed_source per post
+    for pid, p in all_posts.items():
+        in_hot = pid in hot_ids
+        in_new = pid in new_ids_raw
+        p["feed_source"] = "both" if (in_hot and in_new) else ("hot" if in_hot else "new")
+
+    current_ids = set(all_posts.keys())
 
     try:
         seen_ids = posts_dict["seen_ids"]
     except KeyError:
         seen_ids = set()
 
-    new_ids = current_ids - seen_ids
-    new_posts = [p for p in posts if p["id"] in new_ids]
+    genuinely_new_ids = current_ids - seen_ids
+    genuinely_new = [all_posts[pid] for pid in genuinely_new_ids]
 
-    if new_posts:
-        _send_to_amplitude(new_posts)
+    if genuinely_new:
+        _send_to_amplitude(genuinely_new)
 
-    # Write front_page first (UI freshness), then seen_ids
-    posts_dict["front_page"] = posts
+    # Write front_page (hot sort) only if hot feed succeeded
+    if hot_posts is not None:
+        posts_dict["front_page"] = hot_posts
     seen_ids = seen_ids | current_ids
     if len(seen_ids) > 5000:
         seen_ids = current_ids
@@ -140,10 +165,11 @@ def poll_reddit():
     posts_dict["last_polled"] = time.time()
 
     log.warning(
-        "Polled %d posts, %d new: %s",
-        len(posts),
-        len(new_posts),
-        [p["title"][:50] for p in new_posts],
+        "Polled %d hot + %d new, %d genuinely new: %s",
+        len(hot_posts or []),
+        len(new_posts_raw or []),
+        len(genuinely_new),
+        [p["title"][:50] for p in genuinely_new],
     )
 
 
