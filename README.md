@@ -87,4 +87,4 @@ This project was built with Claude Code.
 
 - **[`PLAN.md`](PLAN.md)** — Implementation plan, iterated on and executed phase by phase. Includes architectural decisions, rationale, race condition analysis, and data store schema.
 - **[`process.md`](process.md)** — Phase-by-phase execution log with timestamps, verification results, bugs encountered, and deviations from the plan.
-- **[`transcript.md`](transcript.md)** — Raw Claude Code agent interaction transcript.
+- **[`transcript.md`](transcript.md)** — Raw Claude Code agent interaction transcript for most major implementations.
