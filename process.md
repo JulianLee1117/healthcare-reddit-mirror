@@ -298,3 +298,24 @@ Initial restyle text was too small (14px base, 12.25px titles). Bumped:
 - Built and deployed to production
 - 25 posts render with ranks, Q badges, stats bar, readable type sizes
 - Live at `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
+
+## Phase 8: Amplitude Enrichments & Analytics — 2026-02-12
+
+### Rationale
+With minimal data (~25 posts, one event type, static `user_id: "reddit-mirror"`), Amplitude charts would be thin — bar charts with 5 data points. Enrichments unlock meaningful analysis that demonstrates growth engineering thinking: topic trends, author-level analytics, system health monitoring.
+
+### Implementation
+1. **Topic categorization** — `_categorize_topic(title, content)` keyword classifier. 5 categories (`insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`) + `other` fallback. Keywords tuned for r/healthcare content (e.g., `" ai "` with spaces to avoid matching "wait"/"said", `"epic"` for the EHR system). Added as `topic` event property on `reddit_post_ingested`.
+2. **Author as `user_id`** — Changed from static `"reddit-mirror"` to `p["author"]`. Unlocks Amplitude user analytics (new vs returning authors, posting frequency per author). `device_id` stays `"reddit-mirror"` for `insert_id` dedup continuity.
+3. **`has_content` property** — `bool(p.get("content"))`. Distinguishes text posts from link-only posts.
+4. **`reddit_poll_completed` event** — New event type sent every poll cycle (even when no new posts). Properties: `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`, `question_count`, `question_ratio`. Uses `user_id: "reddit-mirror-system"` to separate system events from author events. `insert_id: f"poll-{int(time.time())}"` for per-second uniqueness.
+
+### Existing Amplitude data
+Old events remain with `user_id: "reddit-mirror"` and basic properties. No backfill — Amplitude dedupes via `insert_id` + `device_id`, so re-sending same post IDs would be silently dropped (not updated). New events get enriched schema going forward. Mixed schemas handled gracefully by Amplitude.
+
+### Code impact
+- `app.py`: 210 → 293 lines (+83 lines: topic keywords dict, categorize function, poll completion function, enriched event properties)
+- No frontend changes — enrichments are Amplitude-only
+
+### Verification
+- `modal run app.py::poll_reddit` — pending deployment

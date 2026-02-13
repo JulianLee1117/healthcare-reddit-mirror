@@ -3537,3 +3537,598 @@
   - Phase 7b: Restyle to internal tool aesthetic (Inter font, stats bar, rank numbers, Q badges, size bump)                    
                                                               
 ✻ Crunched for 40s           
+
+❯ do you think i should embed amplitude dashboard to the modal app frontend 
+
+⏺ Yes, that's actually a strong move. It turns the app from "a mirror + a separate Amplitude dashboard" into one integrated
+  internal tool — which is exactly what the JD describes ("build internal dashboards and feedback loops that keep the team
+  aligned on growth metrics").
+
+  A growth engineer's internal tool that shows both the live feed AND the analytics in one view is more compelling than two
+  disconnected things.
+
+  Practical approach:
+  - Amplitude has an embed/iframe feature for charts — you'd create the charts in Amplitude, grab the embed URLs, and add a tab
+   or section in your React app
+  - Even 2-3 embedded charts alongside the post feed would be enough (post volume, question ratio, posting hours)
+
+  One concern: with only a day or two of data, the charts might look sparse. But that's actually fine — it shows the system
+  works and the infrastructure is in place. You can note "this populates over time as the poller runs."
+
+  Want me to build this? I'd add a simple tab switcher to the frontend — "Posts" tab (current view) and "Analytics" tab
+  (embedded Amplitude charts). Once you create the charts in Amplitude and get the embed URLs, we drop them in.
+
+❯ what kind of actually valuable charts would i make with the data i have r/healthcare                                     
+  Polled 1m ago                                                                                                            
+  25                                                                                                                       
+  posts                                                                                                                    
+  11                                                                                                                       
+  questions                                                                                                                
+  14                                                                                                                       
+  links / discussion                                                                                                       
+  1                                                                                                                        
+  Experimenting with polls and surveys                                                                                     
+  We are exploring a new pattern for polls and surveys. We will provide a stickied post, where those seeking feedback can  
+  comment with the information about the poll, survey, and related feedback sought                                         
+                                                                                                                           
+  NewAlexandria                                                                                                            
+  ·                                                                                                                        
+  354d ago                                                                                                                 
+  2                                                                                                                        
+  Recommendations for the best AI scribe for medical charting and EMR notes                                                
+  Im exploring tools to automate note taking and documentation for medical charting and EMR workflows. We need a solution  
+  that can accurately capture key patient information and visit summaries to free                                          
+                                                                                                                           
+  vitaminZaman                                                                                                             
+  ·                                                                                                                        
+  2h ago                                                                                                                   
+  3                                                                                                                        
+  RFK Jr. promised to restore trust in US health agencies. One year later, it’s eroding                                    
+  GregWilson23                                                                                                             
+  ·                                                                                                                        
+  14h ago                                                                                                                  
+  4                                                                                                                        
+  Home care workers, lawmakers want transparency on $11B CDPAP operator PPL                                                
+  news-10                                                                                                                  
+  ·                                                                                                                        
+  10h ago                                                                                                                  
+  5                                                                                                                        
+  Client/Trainer/Provider/Therapist Boundaries, can you contact “ex” clientele if the relationship is not inappropriate?   
+  Q                                                                                                                        
+  Hello. I work in rehabilitative care for p brain injuries. I’m at that point in my life where I may seek a new job or a  
+  degree, move up past the low point I’m at as far as my career goes. I                                                    
+                                                                                                                           
+  Tickle_Fruit9928                                                                                                         
+  ·                                                                                                                        
+  13h ago                                                                                                                  
+  6                                                                                                                        
+  A Valuable Innovation Used in Rural Communities OR A Sci-Fi Experiment ?                                                 
+  Q                                                                                                                        
+  The end result and measure would be the needed help it may give to prevent infant and/or mother mortality. They are      
+  using it in Canada - should we follow their lead? KFF Health News - 02/12/2026-Alaba                                     
+                                                                                                                           
+  KnowledgeableOleLady                                                                                                     
+  ·                                                                                                                        
+  13h ago                                                                                                                  
+  7                                                                                                                        
+  rectangle health down again can’t log in support nowhere                                                                 
+  jesus christ rectangle health still down cant log in phones dead, patients waiting everything backed up support nowhere  
+  to be found been hours now cant believe this is happening again staff freaking o                                         
+                                                                                                                           
+  More-Crab9230                                                                                                            
+  ·                                                                                                                        
+  20h ago                                                                                                                  
+  8                                                                                                                        
+  Sonography                                                                                                               
+  Hi everyone, so after Spring 2026 I’m receiving my Bachelor’s degree in Communication studies. But I decided recently I  
+  want to pursue sonography. So my question is, is it true that if you go to a non                                         
+                                                                                                                           
+  Just-Measurement-886                                                                                                     
+  · of America’s best foreign aid programs is back from the dead                                                           
+  vox                                                                                                                      
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  10                                                                                                                       
+  Is it normal to be hounded by organizations for blood donations? (27M with O type blood)                                 
+  Q                                                                                                                        
+  Ever since high school, I've been getting non-stop unsolicited calls and mail regarding blood donation and I don't       
+  recall ever voluntarily donating blood so I have no idea how they have any of my medi                                    
+                                                                                                                           
+  itscuccimane                                                                                                             
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  11                                                                                                                       
+  Can a hospital refuse lower monthly payments?                                                                            
+  Q                                                                                                                        
+  location: Missouri so I went to the hospital and didnt have insurance and 1st of all all my research indicates their     
+  overcharging me for the service and its my understanding that they do overcharge pe                                      
+                                                                                                                           
+  Interesting-Bad3497                                                                                                      
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  12                                                                                                                       
+  How can I get my Adderall perception perception sent to a pharmacy out of state ?                                        
+  Q                                                                                                                        
+  I am currently a college student. I live in MN and have always picked up my prescriptions at my local pharmacy. I go to  
+  school in Georgia, so now I cannot pick up my prescription in MN. I am a tempora                                         
+                                                                                                                           
+  ajavathon                                                                                                                
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  13                                                                                                                       
+  How does my bf get a psych evan if Kaiser is flat out saying no?                                                         
+  Q                                                                                                                        
+  I (f24) have ADHD and am medicated. I am fortunate enough to have gotten my psych evaluation while on my mom’s PPO       
+  insurance. It hardly cost me anything. Maybe $10 each time I saw the psychologist. We                                    
+                                                                                                                           
+  4m3ric4                                                                                                                  
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  14                                                                                                                       
+  Medical tourism for elective procedures, has anyone analyzed the actual cost breakdown vs domestic care quality          
+  trade-offs?                                                                                                              
+  Q                                                                                                                        
+  I've been thinking about the economics of medical tourism lately after going through the process myself for an elective  
+  procedure (hair transplant). Not looking for medical advice, more interested in                                          
+                                                                                                                           
+  BillAggravating2179                                                                                                      
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  15                                                                                                                       
+  Interview help                                                                                                           
+  Top_Friendship_6167                                                                                                      
+  ·                                                                                                                        
+  1d ago                                                                                                                   
+  16                                                                                                                       
+  Three providers just told me they're considering leaving because of EHR documentation burden                             
+  Had separate conversations this week with three different providers. All mentioned the same thing: they're drowning in   
+  charts and it's affecting their quality of life. One said she's working until 10p                                        
+                                                                                                                           
+  Hairy-Nothing-4078                                                                                                       
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  17                                                                                                                       
+  Question about experimentcer research and how clinicians evaluate early-stage data                                       
+  Hello, I’m hoping to get some perspective on how to interpret early-stage cancer research. A close family member of mine 
+   has gone through cancer, and that experience pushed me to read more about emerg                                         
+                                                                                                                           
+  KikiYouLuvMe                                                                                                             
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  18                                                                                                                       
+  Options to help my Mother-in-law who has possible cancer                                                                 
+  Scriffignano                                                                                                             
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  19                                                                                                                       
+  Started a free new health ed club for kids in Houston - would love some support!                                         
+  hasan786123                                                                                                              
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  20                                                                                                                       
+  How can I fax documents online?                                                                                          
+  Q                                                                                                                        
+  I used to rely on a fax machine at work, but recently I needed to fax some documents from home. Standing by the machine, 
+   dealing with busy signals, and worrying about paper jams felt so outdated. I tr                                         
+                                                                                                                           
+  Existing_Pumpkin_502                                                                                                     
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  21                                                                                                                       
+  We use age as the main gatekeeper for cancer screening. Is that actually smart?                                          
+  Q                                                                                                                        
+  Here’s something that’s been bugging me lately: two people can walk into clinic on the same day, same age, and have      
+  wildly different cancer risk—but our screening rules mostly treat them e                                                 
+                                                                                                                           
+  supseanie                                                                                                                
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  22                                                                                                                       
+  Trying to build an Epic work queue visibility tool — struggling to find a hospital sponsor. Advice?                      
+  Q                                                                                                                        
+  I’m working on a software product designed to simplify Epic work queue management and reduce timely-filing write-offs    
+  caused by accounts getting lost across too many queues. The idea came directly fro                                       
+                                                                                                                           
+  Substantial_Fix_1700                                                                                                     
+  ·                                                                                                                        
+  2d ago                                                                                                                   
+  23                                                                                                                       
+  Ways to mess with your doctor                                                                                            
+  Let me preference this by saying I love my doctor and she’s a very down to earth person. She often like to play pranks   
+  on the staff to keep the mood light in clinic and so we can all have a good laugh                                        
+                                                                                                                           
+  Virusparid0x                                                                                                             
+  ·                                                                                                                        
+  3d ago                                                                                                                   
+  24                                                                                                                       
+  Is there a reason that my medical record request total pages are different?                                              
+  Q                                                                                                                        
+  I made four record requests over the span of 4 months. 2 in March (03/04, 03/19), 1 in April (04/08), and 1 in July      
+  (07/29). 03/04 came with: 329 pages. Including the confidentiality / appointment his                                     
+                                                                                                                           
+  Neat_Secretary_7159                                                                                                      
+  ·                                                                                                                        
+  4d ago                                                                                                                   
+  25                                                                                                                       
+  I cross-referenced all 43 TrumpRx drugs with GoodRx                                                                      
+  TrumpRx is a recently launchetion discount program that claims to lower drug prices through "Most-Favored-Nation"        
+  pricing and direct negotiations with manufacturers, allegedly forcing drugma                                             
+                                                                                                                           
+  Dazzling-Client-5498                                                                                                     
+  ·                                                                                                                        
+  5d ago and is my amplitude ingesting optimally?                                                                          
+
+⏺ Let me check your current Amplitude event structure first.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ Honest take: with your current data, most charts will look underwhelming. Here's why and what to do about it.
+
+  The problem with your current Amplitude data
+
+  - user_id: "reddit-mirror" — everything is one "user," so Amplitude's best features (retention, funnels, cohorts, user paths)
+   are all useless
+  - ~25-50 posts total, all reddit_post_ingested — one event type means no funnels, no conversion analysis
+  - No engagement data (upvotes, comments) from RSS — can't measure what resonates
+  - post_position is snapshot-at-ingestion, not tracked over time
+
+  The charts you can make (post volume by day, question ratio pie chart, content length histogram) will be 5 data points on a
+  bar chart. That won't impress anyone.
+
+  What would actually be valuable — and demonstrate growth thinking
+
+  The move is to enrich the data before charting it. Two changes that are cheap to implement and unlock real analysis:
+
+  1. Add topic categorization (keyword matching — 10 lines of Python)
+
+  Looking at your actual posts, there are clear clusters:
+  - Insurance/Billing: "Can a hospital refuse lower monthly payments?", "Adderall prescription out of state"
+  - AI/Tech in healthcare: "AI scribe for medical charting", "Epic work queue visibility tool"
+  - Policy: "RFK Jr.", "TrumpRx drugs", "CDPAP operator"
+  - Career: "Sonography", "Interview help"
+  - Patient experience: "blood donations", "psych eval", "medical tourism"
+
+  A simple keyword map → topic event property. Now you can chart what r/healthcare actually talks about — that's a real insight
+   for a health company's growth team.
+
+  2. Use author as user_id instead of "reddit-mirror"
+
+  This unlocks Amplitude's user-level analytics for free: which authors post repeatedly, author retention (do they come back),
+  new vs returning authors per week. Suddenly you're doing community analysis, not just event counting.
+
+  The charts that would actually land
+
+  With those two enrichments:
+  Chart: Topic breakdown (stacked bar)
+  What it shows: What r/healthcare talks about
+  Why it matters for growth: Content opportunity identification — "40% of posts are billing questions, that's a product wedge"
+  ────────────────────────────────────────
+  Chart: Questions by topic (bar)
+  What it shows: Where people need help most
+  Why it matters for growth: Pain point discovery for a health product
+  ────────────────────────────────────────
+  Chart: New vs returning authors (line)
+  What it shows: Community growth/churn
+  Why it matters for growth: Same framework you'd apply to Lotus users
+  ────────────────────────────────────────
+  Chart: Post volume trend (line)
+  What it shows: Subreddit activity over time
+  Why it matters for growth: Channel health monitoring
+  ────────────────────────────────────────
+  Chart: Posting hour heatmap
+  What it shows: When the community is active
+  Why it matters for growth: Optimal timing for content/engagement
+  The first two are the money charts — they show you think about what the data means for growth, not just "look I connected to
+  Amplitude."
+
+  Ingestion improvements
+
+  Your current setup is solid but I'd tweak:
+  - user_id → use author (enables user analytics)
+  - Add topic event property (keyword categorization)
+  - Add has_content boolean (distinguishes link posts from text posts — relevant for content strategy)
+  - Consider a second event type reddit_poll_completed with properties like total_posts, new_posts_count, question_ratio —
+  gives you system health metrics separate from post-level data
+
+  Want me to implement the enrichments (topic categorization + author as user_id) and then you can build the Amplitude charts
+  with actually useful data?
+
+✻ Crunched for 52s
+
+❯ yes, update @PLAN.md and @process.md with and implement those enrichments (not jsure how to handle what's already in     
+  amplitude) but do it optimally                                                                                           
+  ⎿  Read PLAN.md (283 lines)
+  ⎿  Read process.md (301 lines)
+
+⏺ Good strategic question. Let me implement everything now.
+
+  On existing Amplitude data: old events stay as-is (can't retroactively enrich them). New events going forward get the
+  enriched schema. Amplitude handles mixed schemas fine. The old data is thin anyway — not worth backfilling.
+
+⏺ Now let me make all the app.py edits — these are independent, so I'll do them in parallel.
+
+⏺ Update(app.py)
+  ⎿  Added 37 lines
+      20  
+      21  log = logging.getLogger(__name__)
+      22  
+      23 +_TOPIC_KEYWORDS = {                                                                                           
+      24 +    "insurance_billing": [                                                                                    
+      25 +        "insurance", "billing", "payment", "cost", "claim", "coverage",                                       
+      26 +        "copay", "deductible", "premium", "afford", "charge", "price",                                        
+      27 +        "out of pocket", "medicaid", "medicare", "uninsured",                                                 
+      28 +    ],                                                                                                        
+      29 +    "policy_regulation": [                                                                                    
+      30 +        "rfk", "trump", "legislation", "regulation", "fda", "cdc",                                            
+      31 +        "cms", "aca", "obamacare", "policy", "reform", "mandate",                                             
+      32 +        "congress", "cdpap", "foreign aid", "executive order",                                                
+      33 +    ],                                                                                                        
+      34 +    "health_tech": [                                                                                          
+      35 +        " ai ", "ehr", "emr", "scribe", "software", "automation",                                             
+      36 +        "telehealth", "telemedicine", "dashboard", "fax",                                                     
+      37 +        "work queue", "charting", "epic",                                                                     
+      38 +    ],                                                                                                        
+      39 +    "career_workforce": [                                                                                     
+      40 +        "career", "interview", "degree", "certification", "salary",                                           
+      41 +        "hiring", "sonography", "nursing", "residency", "burnout",                                            
+      42 +        "documentation burden", "workforce", "considering leaving",                                           
+      43 +    ],                                                                                                        
+      44 +    "patient_experience": [                                                                                   
+      45 +        "diagnosis", "prescription", "medication", "adderall", "symptom",                                     
+      46 +        "treatment", "blood donation", "is it normal",                                                        
+      47 +        "psych eval", "medical record", "medical tourism", "screening",                                       
+      48 +        "cancer",                                                                                             
+      49 +    ],                                                                                                        
+      50 +}                                                                                                             
+      51  
+      52 +                                                                                                              
+      53 +def _categorize_topic(title: str, content: str) -> str:                                                       
+      54 +    text = f" {title} {content} ".lower()                                                                     
+      55 +    for topic, keywords in _TOPIC_KEYWORDS.items():                                                           
+      56 +        if any(kw in text for kw in keywords):                                                                
+      57 +            return topic                                                                                      
+      58 +    return "other"                                                                                            
+      59 +                                                                                                              
+      60 +                                                                                                              
+      61  def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
+      62      import re
+      63      import xml.etree.ElementTree as ET
+
+⏺ Update(app.py)
+  ⎿  Added 1 line, removed 1 line
+      119      now = time.time()
+      120      events = [
+      121          {
+      122 -            "user_id": "reddit-mirror",                                                                      
+      122 +            "user_id": p["author"],                                                                          
+      123              "device_id": "reddit-mirror",
+      124              "event_type": "reddit_post_ingested",
+      125              "time": int(p["created_utc"] * 1000),
+
+⏺ Update(app.py)
+  ⎿  Added 2 lines
+      132                  "post_position": i + 1,
+      133                  "content_length": len(p.get("content", "")),
+      134                  "is_question": "?" in p["title"],
+      135 +                "topic": _categorize_topic(p["title"], p.get("content", "")),                                
+      136 +                "has_content": bool(p.get("content")),                                                       
+      137              },
+      138          }
+      139          for i, p in enumerate(posts)
+
+⏺ Now add the poll completion event function and its call.
+
+⏺ Update(app.py)
+  ⎿  Added 35 lines
+      150          log.error("Amplitude send failed: %s", e)
+      151  
+      152  
+      153 +def _send_poll_completion(hot_count: int, new_count: int, genuinely_new: int, all_posts: dict) -> None:      
+      154 +    import os                                                                                                
+      155 +    import time                                                                                              
+      156 +                                                                                                             
+      157 +    import httpx                                                                                             
+      158 +                                                                                                             
+      159 +    api_key = os.environ["AMPLITUDE_API_KEY"]                                                                
+      160 +    posts = list(all_posts.values())                                                                         
+      161 +    question_count = sum(1 for p in posts if "?" in p["title"])                                              
+      162 +    event = {                                                                                                
+      163 +        "user_id": "reddit-mirror-system",                                                                   
+      164 +        "device_id": "reddit-mirror",                                                                        
+      165 +        "event_type": "reddit_poll_completed",                                                               
+      166 +        "time": int(time.time() * 1000),                                                                     
+      167 +        "insert_id": f"poll-{int(time.time())}",                                                             
+      168 +        "event_properties": {                                                                                
+      169 +            "hot_count": hot_count,                                                                          
+      170 +            "new_count": new_count,                                                                          
+      171 +            "genuinely_new_count": genuinely_new,                                                            
+      172 +            "total_unique": len(posts),                                                                      
+      173 +            "question_count": question_count,                                                                
+      174 +            "question_ratio": round(question_count / len(posts), 2) if posts else 0,                         
+      175 +        },                                                                                                   
+      176 +    }                                                                                                        
+      177 +    try:                                                                                                     
+      178 +        resp = httpx.post(                                                                                   
+      179 +            AMPLITUDE_URL,                                                                                   
+      180 +            json={"api_key": api_key, "events": [event]},                                                    
+      181 +            timeout=10,                                                                                      
+      182 +        )                                                                                                    
+      183 +        resp.raise_for_status()                                                                              
+      184 +    except httpx.HTTPError as e:                                                                             
+      185 +        log.error("Amplitude poll event failed: %s", e)                                                      
+      186 +                                                                                                             
+      187 +                                                                                                             
+      188  @app.function(
+      189      image=image,
+      190      schedule=modal.Cron("*/5 * * * *"),
+
+⏺ Update(app.py)
+  ⎿  Added 7 lines
+      230      posts_dict["seen_ids"] = seen_ids
+      231      posts_dict["last_polled"] = time.time()
+      232  
+      233 +    _send_poll_completion(                                                                                   
+      234 +        len(hot_posts or []),                                                                                
+      235 +        len(new_posts_raw or []),                                                                            
+      236 +        len(genuinely_new),                                                                                  
+      237 +        all_posts,                                                                                           
+      238 +    )                                                                                                        
+      239 +                                                                                                             
+      240      log.warning(
+      241          "Polled %d hot + %d new, %d genuinely new: %s",
+      242          len(hot_posts or []),
+
+⏺ Let me verify the final file and update docs in parallel.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ Code looks good. Now update PLAN.md and process.md in parallel.
+
+⏺ Update(PLAN.md)
+  ⎿  Added 30 lines
+      227  
+      228  ---
+      229  
+      230 +## Phase 8: Amplitude Enrichments & Analytics                                                                
+      231 +                                                                                                             
+      232 +**Goal:** Enrich event data to unlock meaningful Amplitude charts for growth analysis. With minimal data     
+          +(~25 posts, one event type, static `user_id`), charts would be thin. These enrichments transform raw event   
+          +logging into actionable growth intelligence.                                                                 
+      233 +                                                                                                             
+      234 +**Changes to `app.py`:**                                                                                     
+      235 +                                                                                                             
+      236 +1. **Topic categorization** — `_categorize_topic(title, content)` keyword classifier with 6 categories:      
+      237 +   - `insurance_billing`: cost, coverage, payment pain points                                                
+      238 +   - `policy_regulation`: FDA, CMS, legislation, political health policy                                     
+      239 +   - `health_tech`: AI, EHR, EMR, telehealth, digital health tools                                           
+      240 +   - `career_workforce`: jobs, burnout, documentation burden, certifications                                 
+      241 +   - `patient_experience`: diagnoses, prescriptions, screenings, medical records                             
+      242 +   - `other`: default fallback                                                                               
+      243 +   Added as `topic` property on `reddit_post_ingested` events. Enables topic trend analysis — "40% of posts  
+          +are billing questions" is a real growth insight for a health company.                                        
+      244 +                                                                                                             
+      245 +2. **Author as `user_id`** — changed from static `"reddit-mirror"` to post author name. Unlocks Amplitude's  
+          +user-level analytics: author frequency, new vs returning authors, per-author activity patterns. Same         
+          +analytical framework a growth engineer applies to product users.                                             
+      246 +                                                                                                             
+      247 +3. **`has_content` property** — boolean distinguishing text posts (with body) from link-only posts. Enables  
+          +content strategy analysis (what ratio of community activity is discussion vs link sharing).                  
+      248 +                                                                                                             
+      249 +4. **`reddit_poll_completed` event** — new event type sent every poll cycle with aggregate stats:            
+      250 +   - `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`                                         
+      251 +   - `question_count`, `question_ratio`                                                                      
+      252 +   Enables system health monitoring and post volume trend charts independent of individual post events.      
+      253 +                                                                                                             
+      254 +**Existing Amplitude data:** Old events remain with `user_id: "reddit-mirror"` and basic properties. New     
+          +events get enriched schema going forward. Amplitude handles mixed schemas gracefully — no backfill needed.   
+          +Amplitude dedupes via `insert_id` + `device_id`, so clearing `seen_ids` would NOT update old events (old     
+          +insert_ids are already consumed).                                                                            
+      255 +                                                                                                             
+      256 +**Verify:** `modal run app.py::poll_reddit` — check Amplitude for `topic` property on new events,            
+          +`reddit_poll_completed` event with aggregate stats, and author-level user entries.                           
+      257 +                                                                                                             
+      258 +---                                                                                                          
+      259 +                                                                                                             
+      260  ## Key Design Decisions
+      261  
+      262  | Decision | Choice | Why |
+
+⏺ Update(PLAN.md)
+  ⎿  Added 1 line, removed 1 line
+      269  | XML parser | `xml.etree.ElementTree` (stdlib) | No extra dependency; sufficient for well-formed Atom feed
+           |
+      270  | Frontend | React SPA (Vite) served from FastAPI `StaticFiles` | Interviewer recommended JS framework; they
+            use React internally; enables richer UI (charts, routing) |
+      271  | Dedup strategy | `seen_ids` set in Dict + Amplitude `insert_id` | Belt and suspenders — Dict is primary,
+           `insert_id` is crash-recovery safety net |
+      272 -| `user_id` for Amplitude | `"reddit-mirror"` | System-generated events; satisfies 5-char minimum |          
+      272 +| `user_id` for Amplitude | Post author (was `"reddit-mirror"`) | Enables Amplitude user-level analytics     
+          +(author frequency, retention); `"reddit-mirror-system"` for poll completion events |                         
+      273  | Write order in poller | `front_page` first, then `seen_ids` | Optimizes for UI freshness; `insert_id`
+           handles any duplicate sends |
+      274  
+      275  ## Data Store: Modal Dict Schema
+
+⏺ Update(process.md)
+  ⎿  Added 21 lines
+      298  - Built and deployed to production
+      299  - 25 posts render with ranks, Q badges, stats bar, readable type sizes
+      300  - Live at `https://julianlee1117--healthcare-reddit-mirror-serve.modal.run`
+      301 +                                                                                                             
+      302 +## Phase 8: Amplitude Enrichments & Analytics — 2026-02-12                                                   
+      303 +                                                                                                             
+      304 +### Rationale                                                                                                
+      305 +With minimal data (~25 posts, one event type, static `user_id: "reddit-mirror"`), Amplitude charts would be  
+          +thin — bar charts with 5 data points. Enrichments unlock meaningful analysis that demonstrates growth        
+          +engineering thinking: topic trends, author-level analytics, system health monitoring.                        
+      306 +                                                                                                             
+      307 +### Implementation                                                                                           
+      308 +1. **Topic categorization** — `_categorize_topic(title, content)` keyword classifier. 5 categories           
+          +(`insurance_billing`, `policy_regulation`, `health_tech`, `career_workforce`, `patient_experience`) +        
+          +`other` fallback. Keywords tuned for r/healthcare content (e.g., `" ai "` with spaces to avoid matching      
+          +"wait"/"said", `"epic"` for the EHR system). Added as `topic` event property on `reddit_post_ingested`.      
+      309 +2. **Author as `user_id`** — Changed from static `"reddit-mirror"` to `p["author"]`. Unlocks Amplitude user  
+          +analytics (new vs returning authors, posting frequency per author). `device_id` stays `"reddit-mirror"` for  
+          +`insert_id` dedup continuity.                                                                                
+      310 +3. **`has_content` property** — `bool(p.get("content"))`. Distinguishes text posts from link-only posts.     
+      311 +4. **`reddit_poll_completed` event** — New event type sent every poll cycle (even when no new posts).        
+          +Properties: `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`, `question_count`,               
+          +`question_ratio`. Uses `user_id: "reddit-mirror-system"` to separate system events from author events.       
+          +`insert_id: f"poll-{int(time.time())}"` for per-second uniqueness.                                           
+      312 +                                                                                                             
+      313 +### Existing Amplitude data                                                                                  
+      314 +Old events remain with `user_id: "reddit-mirror"` and basic properties. No backfill — Amplitude dedupes via  
+          +`insert_id` + `device_id`, so re-sending same post IDs would be silently dropped (not updated). New events   
+          +get enriched schema going forward. Mixed schemas handled gracefully by Amplitude.                            
+      315 +                                                                                                             
+      316 +### Code impact                                                                                              
+      317 +- `app.py`: 210 → 293 lines (+83 lines: topic keywords dict, categorize function, poll completion function,  
+          +enriched event properties)                                                                                   
+      318 +- No frontend changes — enrichments are Amplitude-only                                                       
+      319 +                                                                                                             
+      320 +### Verification                                                                                             
+      321 +- `modal run app.py::poll_reddit` — pending deployment                                                       
+
+⏺ Now build and deploy.
+
+⏺ Bash(cd /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror/frontend && npm run build 2>&1)
+  ⎿  > build
+     > vite build
+     … +9 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror && modal deploy app.py 2>&1)
+  ⎿  ✓ Created objects.
+     ├── 🔨 Created mount
+     │   /Users/julian/Documents/GithubProjects/healthcare-reddit-mirror/app.py
+     … +10 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+⏺ Deployed. Now trigger a poll to test the enrichments.               
+                                                
+⏺ Bash(modal run app.py::poll_reddit 2>&1)                            
+  ⎿  ✓ Initialized. View run at                                                      
+     https://modal.com/apps/julianlee1117/main/ap-z1j1rEBMqlag2ewybxyaAO
+     ✓ Created objects.                                                                                                        
+     … +12 lines (ctrl+o to expand)                                   
+  ⎿  (timeout 1m)                                                                                                              
+                                                                                                      
+⏺ Deployed and running. Here's what happened:                                                                                  
+                                                                                                                               
+  Enrichments implemented:                                                                                                     
+  1. Topic categorization — 5 categories (insurance_billing, policy_regulation, health_tech, career_workforce,                 
+  patient_experience) + other. Keyword-based, tuned for r/healthcare.                                                          
+  2. Author as user_id — each post author is now a distinct Amplitude user. Unlocks new/returning author analysis, posting     
+  frequency per author.                                                                                                        
+  3. has_content — distinguishes text posts from link posts.                                                                   
+  4. reddit_poll_completed event — fires every poll cycle with aggregate stats (hot_count, new_count, genuinely_new_count,     
+  total_unique, question_count, question_ratio). Sent even when no new posts — tracks system health.
+                                                                                                                               
+  On existing data: The poll ran with 0 genuinely new posts (all already in seen_ids), so no enriched reddit_post_ingested
+  events were sent yet — those will fire for the next new post. But the reddit_poll_completed event was sent, so you should see
+   that in Amplitude now.
+
+  To get enriched post events flowing: When a new post appears on r/healthcare (usually within a few hours), the next poll
+  cycle will ingest it with the full enriched schema. Or if you want to test immediately, you can clear seen_ids — but note the
+   old events won't be updated (Amplitude dedupes by insert_id).
+
+  PLAN.md and process.md both updated with Phase 8.

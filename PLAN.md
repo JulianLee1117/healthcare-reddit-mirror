@@ -227,6 +227,36 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 
 ---
 
+## Phase 8: Amplitude Enrichments & Analytics
+
+**Goal:** Enrich event data to unlock meaningful Amplitude charts for growth analysis. With minimal data (~25 posts, one event type, static `user_id`), charts would be thin. These enrichments transform raw event logging into actionable growth intelligence.
+
+**Changes to `app.py`:**
+
+1. **Topic categorization** — `_categorize_topic(title, content)` keyword classifier with 6 categories:
+   - `insurance_billing`: cost, coverage, payment pain points
+   - `policy_regulation`: FDA, CMS, legislation, political health policy
+   - `health_tech`: AI, EHR, EMR, telehealth, digital health tools
+   - `career_workforce`: jobs, burnout, documentation burden, certifications
+   - `patient_experience`: diagnoses, prescriptions, screenings, medical records
+   - `other`: default fallback
+   Added as `topic` property on `reddit_post_ingested` events. Enables topic trend analysis — "40% of posts are billing questions" is a real growth insight for a health company.
+
+2. **Author as `user_id`** — changed from static `"reddit-mirror"` to post author name. Unlocks Amplitude's user-level analytics: author frequency, new vs returning authors, per-author activity patterns. Same analytical framework a growth engineer applies to product users.
+
+3. **`has_content` property** — boolean distinguishing text posts (with body) from link-only posts. Enables content strategy analysis (what ratio of community activity is discussion vs link sharing).
+
+4. **`reddit_poll_completed` event** — new event type sent every poll cycle with aggregate stats:
+   - `hot_count`, `new_count`, `genuinely_new_count`, `total_unique`
+   - `question_count`, `question_ratio`
+   Enables system health monitoring and post volume trend charts independent of individual post events.
+
+**Existing Amplitude data:** Old events remain with `user_id: "reddit-mirror"` and basic properties. New events get enriched schema going forward. Amplitude handles mixed schemas gracefully — no backfill needed. Amplitude dedupes via `insert_id` + `device_id`, so clearing `seen_ids` would NOT update old events (old insert_ids are already consumed).
+
+**Verify:** `modal run app.py::poll_reddit` — check Amplitude for `topic` property on new events, `reddit_poll_completed` event with aggregate stats, and author-level user entries.
+
+---
+
 ## Key Design Decisions
 
 | Decision | Choice | Why |
@@ -239,7 +269,7 @@ modal secret create amplitude-secret AMPLITUDE_API_KEY=<key>
 | XML parser | `xml.etree.ElementTree` (stdlib) | No extra dependency; sufficient for well-formed Atom feed |
 | Frontend | React SPA (Vite) served from FastAPI `StaticFiles` | Interviewer recommended JS framework; they use React internally; enables richer UI (charts, routing) |
 | Dedup strategy | `seen_ids` set in Dict + Amplitude `insert_id` | Belt and suspenders — Dict is primary, `insert_id` is crash-recovery safety net |
-| `user_id` for Amplitude | `"reddit-mirror"` | System-generated events; satisfies 5-char minimum |
+| `user_id` for Amplitude | Post author (was `"reddit-mirror"`) | Enables Amplitude user-level analytics (author frequency, retention); `"reddit-mirror-system"` for poll completion events |
 | Write order in poller | `front_page` first, then `seen_ids` | Optimizes for UI freshness; `insert_id` handles any duplicate sends |
 
 ## Data Store: Modal Dict Schema

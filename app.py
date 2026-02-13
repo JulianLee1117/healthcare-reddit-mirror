@@ -20,6 +20,43 @@ _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 log = logging.getLogger(__name__)
 
+_TOPIC_KEYWORDS = {
+    "insurance_billing": [
+        "insurance", "billing", "payment", "cost", "claim", "coverage",
+        "copay", "deductible", "premium", "afford", "charge", "price",
+        "out of pocket", "medicaid", "medicare", "uninsured",
+    ],
+    "policy_regulation": [
+        "rfk", "trump", "legislation", "regulation", "fda", "cdc",
+        "cms", "aca", "obamacare", "policy", "reform", "mandate",
+        "congress", "cdpap", "foreign aid", "executive order",
+    ],
+    "health_tech": [
+        " ai ", "ehr", "emr", "scribe", "software", "automation",
+        "telehealth", "telemedicine", "dashboard", "fax",
+        "work queue", "charting", "epic",
+    ],
+    "career_workforce": [
+        "career", "interview", "degree", "certification", "salary",
+        "hiring", "sonography", "nursing", "residency", "burnout",
+        "documentation burden", "workforce", "considering leaving",
+    ],
+    "patient_experience": [
+        "diagnosis", "prescription", "medication", "adderall", "symptom",
+        "treatment", "blood donation", "is it normal",
+        "psych eval", "medical record", "medical tourism", "screening",
+        "cancer",
+    ],
+}
+
+
+def _categorize_topic(title: str, content: str) -> str:
+    text = f" {title} {content} ".lower()
+    for topic, keywords in _TOPIC_KEYWORDS.items():
+        if any(kw in text for kw in keywords):
+            return topic
+    return "other"
+
 
 def _fetch_reddit(url: str = RSS_URL) -> list[dict] | None:
     import re
@@ -82,7 +119,7 @@ def _send_to_amplitude(posts: list[dict]) -> None:
     now = time.time()
     events = [
         {
-            "user_id": "reddit-mirror",
+            "user_id": f"reddit:{p['author']}",
             "device_id": "reddit-mirror",
             "event_type": "reddit_post_ingested",
             "time": int(p["created_utc"] * 1000),
@@ -95,6 +132,8 @@ def _send_to_amplitude(posts: list[dict]) -> None:
                 "post_position": i + 1,
                 "content_length": len(p.get("content", "")),
                 "is_question": "?" in p["title"],
+                "topic": _categorize_topic(p["title"], p.get("content", "")),
+                "has_content": bool(p.get("content")),
             },
         }
         for i, p in enumerate(posts)
@@ -105,10 +144,47 @@ def _send_to_amplitude(posts: list[dict]) -> None:
             json={"api_key": api_key, "events": events},
             timeout=10,
         )
-        resp.raise_for_status()
-        log.warning("Amplitude: sent %d events, status %d", len(events), resp.status_code)
+        if resp.status_code != 200:
+            log.error("Amplitude error %d: %s", resp.status_code, resp.text)
+        else:
+            log.warning("Amplitude: sent %d events, status %d", len(events), resp.status_code)
     except httpx.HTTPError as e:
         log.error("Amplitude send failed: %s", e)
+
+
+def _send_poll_completion(hot_count: int, new_count: int, genuinely_new: int, all_posts: dict) -> None:
+    import os
+    import time
+
+    import httpx
+
+    api_key = os.environ["AMPLITUDE_API_KEY"]
+    posts = list(all_posts.values())
+    question_count = sum(1 for p in posts if "?" in p["title"])
+    event = {
+        "user_id": "reddit-mirror-system",
+        "device_id": "reddit-mirror",
+        "event_type": "reddit_poll_completed",
+        "time": int(time.time() * 1000),
+        "insert_id": f"poll-{int(time.time())}",
+        "event_properties": {
+            "hot_count": hot_count,
+            "new_count": new_count,
+            "genuinely_new_count": genuinely_new,
+            "total_unique": len(posts),
+            "question_count": question_count,
+            "question_ratio": round(question_count / len(posts), 2) if posts else 0,
+        },
+    }
+    try:
+        resp = httpx.post(
+            AMPLITUDE_URL,
+            json={"api_key": api_key, "events": [event]},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        log.error("Amplitude poll event failed: %s", e)
 
 
 @app.function(
@@ -155,6 +231,13 @@ def poll_reddit():
         seen_ids = current_ids
     posts_dict["seen_ids"] = seen_ids
     posts_dict["last_polled"] = time.time()
+
+    _send_poll_completion(
+        len(hot_posts or []),
+        len(new_posts_raw or []),
+        len(genuinely_new),
+        all_posts,
+    )
 
     log.warning(
         "Polled %d hot + %d new, %d genuinely new: %s",
