@@ -1,4 +1,4 @@
-# healthcare-reddit-mirror
+# healthcare-reddit-mirror (no longer active)
 
 A live mirror of r/healthcare that polls Reddit every 5 minutes, sends new-post events to Amplitude, and displays the current front page in a web UI.
 
